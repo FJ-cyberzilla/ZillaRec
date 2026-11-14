@@ -36,14 +36,17 @@ help:
 	@printf "$(CYAN)======================================================================$(RESET)\n"
 
 build:
+	@mkdir -p bin
 	@printf "$(OLIVE)[BUILD]$(RESET) Compiling native Zilla-Rec binary...\n"
-	@go build -v -o $(BINARY_NAME) .
-	@printf "$(GREEN)[SUCCESS]$(RESET) Binary built successfully: $(BOLD)./$(BINARY_NAME)$(RESET)\n"
+	@go build -v -o bin/$(BINARY_NAME) .
+	@cp bin/$(BINARY_NAME) $(BINARY_NAME)
+	@printf "$(GREEN)[SUCCESS]$(RESET) Binary built successfully: $(BOLD)bin/$(BINARY_NAME)$(RESET)\n"
 
 build-linux:
+	@mkdir -p bin
 	@printf "$(OLIVE)[BUILD-LINUX]$(RESET) Cross-compiling Zilla-Rec for Linux/WSL2...\n"
-	@GOOS=linux GOARCH=amd64 go build -v -o bin/$(BINARY_NAME)-linux .
-	@printf "$(GREEN)[SUCCESS]$(RESET) Linux binary built: $(BOLD)bin/$(BINARY_NAME)-linux$(RESET)\n"
+	@GOOS=linux GOARCH=amd64 go build -v -o bin/$(BINARY_NAME) .
+	@printf "$(GREEN)[SUCCESS]$(RESET) Linux binary built: $(BOLD)bin/$(BINARY_NAME)$(RESET)\n"
 
 install-wsl: build-linux
 	@printf "$(OLIVE)[INSTALL-WSL]$(RESET) Triggering PowerShell deployment suite...\n"
