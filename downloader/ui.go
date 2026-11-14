@@ -55,15 +55,18 @@ func NewRenderer(out io.Writer) *Renderer {
 // Default returns a Renderer bound to the process stdout.
 func DefaultRenderer() *Renderer { return NewRenderer(os.Stdout) }
 
-func (r *Renderer) write(format string, a ...any) {
+func (r *Renderer) write(s string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, _ = fmt.Fprint(r.out, s)
+}
+
+// writeRaw writes with formatting (used by ProgressBar).
+func (r *Renderer) writeRaw(format string, a ...any) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	_, _ = fmt.Fprintf(r.out, format, a...)
 }
-
-// writeRaw writes without color wrapping (used by ProgressBar, which
-// already embeds its own escapes).
-func (r *Renderer) writeRaw(format string, a ...any) { r.write(format, a...) }
 
 func (r *Renderer) Info(format string, a ...any) {
 	r.write(r.color.wrap(escCyan, fmt.Sprintf(format, a...)) + "\n")

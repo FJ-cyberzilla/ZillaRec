@@ -12,6 +12,7 @@ import (
 	"yt-termux/config"
 	"yt-termux/downloader"
 	"yt-termux/storage"
+	"yt-termux/web"
 )
 
 // bannerLines: YT DOWNLOADER in a compact mini-font that fits phone screens.
@@ -24,7 +25,6 @@ var bannerLines = []string{
 }
 
 func renderBanner() {
-	// Gradient stops: Gold (220) -> Red (196) -> Deep Blue (21)
 	left, right := 220, 21
 
 	if !isTTY(os.Stdout) {
@@ -109,6 +109,16 @@ const defaultFormat = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best
 
 func main() {
 	r := downloader.DefaultRenderer()
+
+	// Check for web mode command
+	if len(os.Args) >= 2 && os.Args[1] == "web" {
+		if err := web.RunServer("127.0.0.1:8080"); err != nil {
+			r.Error("web server error: %v", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	renderBanner()
 
 	// Read URL: from argv, or prompt if none given.
@@ -119,12 +129,20 @@ func main() {
 		r.Info("Paste video URL:")
 		fmt.Print("  › ")
 		var line string
-		fmt.Fscanln(os.Stdin, &line)
+		_, _ = fmt.Fscanln(os.Stdin, &line)
 		url = strings.TrimSpace(line)
 	}
 	if url == "" {
 		r.Error("no URL provided")
 		os.Exit(2)
+	}
+
+	// Prompt for quality selection menu
+	profiles := config.QualityProfiles()
+	formatSpec, err := r.PromptQuality(os.Stdin, profiles)
+	if err != nil {
+		r.Warn("using default quality: %v", err)
+		formatSpec = defaultFormat
 	}
 
 	outDir, err := storage.OutputDir()
@@ -144,20 +162,23 @@ func main() {
 	cb := downloader.Callbacks{
 		OnProgress: bar.Update,
 		OnDestination: func(dest string) {
-			bar.EndProgress()
-			r.Info("→ %s", filepath.Base(dest))
+			bar.SetStatus("Saved: " + filepath.Base(dest))
 		},
 		OnMerging: func() {
-			bar.EndProgress()
-			r.Info("merging…")
+			bar.SetStatus("Merging formats...")
 		},
 		OnLog: func(line string) {
-			bar.EndProgress()
-			r.Info("%s", line)
+			short := line
+			if idx := strings.Index(line, "]: "); idx != -1 {
+				short = line[idx+3:]
+			} else if idx := strings.Index(line, "]:"); idx != -1 {
+				short = line[idx+2:]
+			}
+			bar.SetStatus(strings.TrimSpace(short))
 		},
 	}
 
-	res, err := downloader.Run(ctx, url, defaultFormat, cfg.CookieFile, outDir, cb)
+	res, err := downloader.Run(ctx, url, formatSpec, cfg.CookieFile, outDir, cb)
 	bar.EndProgress()
 	if err != nil {
 		r.Error("%v", err)
@@ -166,8 +187,5 @@ func main() {
 
 	downloader.RegisterWithMediaStore(res.Files)
 
-	r.Success("saved %d file(s) to %s", len(res.Files), res.OutputDir)
-	for _, f := range res.Files {
-		r.Info("  %s", f)
-	}
+	r.Success("✓ Download completed! Saved %d file(s) to %s", len(res.Files), res.OutputDir)
 }

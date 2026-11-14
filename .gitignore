@@ -1,5 +1,6 @@
 # Build artifacts
 /yt-downloader
+/yt-termux
 /bin/
 *.exe
 

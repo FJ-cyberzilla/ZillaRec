@@ -20,14 +20,14 @@ func (r *Renderer) PromptQuality(
 		return "", fmt.Errorf("no quality profiles available")
 	}
 
-	r.write("\n%s=== SELECT VIDEO QUALITY ===%s\n", escBold+escCyan, escReset)
+	r.write(fmt.Sprintf("\n%s=== SELECT VIDEO QUALITY ===%s\n", escBold+escCyan, escReset))
 	for _, opt := range profiles {
-		r.write(" %s[%s]%s %s\n", escGreen, opt.ID, escReset, opt.Label)
+		r.write(fmt.Sprintf(" %s[%s]%s %s\n", escGreen, opt.ID, escReset, opt.Label))
 	}
 
 	reader := bufio.NewReader(in)
 	for attempt := 0; attempt < 5; attempt++ {
-		r.write("Enter choice (default %s): ", profiles[0].ID)
+		r.write(fmt.Sprintf("Enter choice (default %s): ", profiles[0].ID))
 		line, err := reader.ReadString('\n')
 		if err != nil && line == "" {
 			return "", fmt.Errorf("reading choice: %w", err)
@@ -42,7 +42,7 @@ func (r *Renderer) PromptQuality(
 				return opt.FormatSpec, nil
 			}
 		}
-		r.write("%sinvalid choice %q, try again%s\n", escYellow, choice, escReset)
+		r.write(fmt.Sprintf("%sinvalid choice %q, try again%s\n", escYellow, choice, escReset))
 	}
 	return "", fmt.Errorf("too many invalid attempts")
 }
@@ -50,7 +50,9 @@ func (r *Renderer) PromptQuality(
 // ParsePercent turns yt-dlp's percentage string into a number. Unknown
 // values ("N/A", "") yield 0 rather than panicking.
 func ParsePercent(s string) float64 {
-	s = strings.TrimSuffix(strings.TrimSpace(s), "%")
+	s = strings.TrimSpace(s)
+	s = strings.TrimSuffix(s, "%")
+	s = strings.TrimSpace(s)
 	v, err := strconv.ParseFloat(s, 64)
 	if err != nil {
 		return 0

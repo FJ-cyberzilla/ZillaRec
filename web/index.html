@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FJ™ Cybertronic Systems // YT Downloader</title>
+    <style>
+        /* 1986 Terminal Aesthetic */
+        :root {
+            --bg-color: #050510;
+            --term-green: #33ff00;
+            --term-dark: #003300;
+            --term-red: #ff3333;
+            --term-yellow: #ffcc00;
+            --border-glow: 0 0 10px rgba(51, 255, 0, 0.5);
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--term-green);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            text-shadow: 0 0 2px var(--term-green);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 700px;
+            border: 2px solid var(--term-green);
+            padding: 20px;
+            background: #000;
+            box-shadow: var(--border-glow), inset 0 0 20px rgba(51, 255, 0, 0.1);
+            position: relative;
+        }
+
+        /* CRT Scanline Effect */
+        .container::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 1px dashed var(--term-green);
+            padding-bottom: 10px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin: 0;
+            color: var(--term-yellow);
+            text-shadow: 0 0 5px var(--term-yellow);
+            letter-spacing: 2px;
+        }
+
+        .header p {
+            font-size: 12px;
+            margin: 5px 0 0 0;
+            opacity: 0.8;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            background: #000;
+            border: 1px solid var(--term-green);
+            color: var(--term-green);
+            padding: 12px;
+            font-size: 16px;
+            outline: none;
+            box-shadow: inset 0 0 5px rgba(51, 255, 0, 0.3);
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--term-yellow);
+            box-shadow: inset 0 0 10px rgba(255, 204, 0, 0.3);
+        }
+
+        button {
+            background: var(--term-dark);
+            color: var(--term-green);
+            border: 1px solid var(--term-green);
+            padding: 12px;
+            font-size: 16px;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-weight: bold;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: var(--term-green);
+            color: #000;
+            box-shadow: var(--border-glow);
+        }
+
+        button:disabled {
+            border-color: #555;
+            color: #555;
+            background: #111;
+            cursor: not-allowed;
+        }
+
+        .terminal-output {
+            background: #000;
+            border: 1px solid var(--term-green);
+            padding: 15px;
+            height: 200px;
+            overflow-y: auto;
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: var(--term-green);
+            margin-bottom: 20px;
+        }
+
+        .terminal-output.error { color: var(--term-red); border-color: var(--term-red); }
+
+        .footer {
+            text-align: center;
+            font-size: 10px;
+            opacity: 0.6;
+            margin-top: 20px;
+        }
+
+        /* Blinking cursor */
+        .cursor::after {
+            content: "_";
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>FJ™ CYBERTRONIC SYSTEMS</h1>
+        <p>SYSTEM V.1.0 // YT DOWNLOADER</p>
+    </div>
+
+    <div class="input-group">
+        <input type="text" id="urlInput" placeholder="ENTER VIDEO URL HERE..." autocomplete="off">
+        <button id="dlBtn" onclick="startDownload()">INITIATE DOWNLOAD</button>
+    </div>
+
+    <div class="terminal-output" id="output">
+        > SYSTEM READY...
+        > AWAITING INPUT<span class="cursor"></span>
+    </div>
+
+    <div class="footer">
+        © 1986 - 2026 FJ CYBERZILLA. ALL RIGHTS RESERVED.<br>
+        LOCAL SECURE ENVIRONMENT
+    </div>
+</div>
+
+<script>
+    async function startDownload() {
+        const url = document.getElementById('urlInput').value.trim();
+        const btn = document.getElementById('dlBtn');
+        const output = document.getElementById('output');
+
+        if (!url) {
+            output.innerText = "> ERROR: NO URL DETECTED.\n> PLEASE ENTER A VALID LINK.";
+            output.classList.add('error');
+            return;
+        }
+
+        // UI state
+        btn.disabled = true;
+        btn.innerText = "DOWNLOADING...";
+        output.classList.remove('error');
+        output.innerText = "> CONNECTING TO YT-DLP...\n> FETCHING METADATA...";
+
+        try {
+            // Send POST request to local Go server
+            const response = await fetch('/api/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                output.innerText = "> SUCCESS!\n\n" + data.message;
+            } else {
+                output.innerText = "> FATAL ERROR:\n\n" + data.message;
+                output.classList.add('error');
+            }
+        } catch (err) {
+            output.innerText = "> CONNECTION ERROR:\n> Is the local Go server running?\n\n" + err.toString();
+            output.classList.add('error');
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "INITIATE DOWNLOAD";
+        }
+    }
+
+    // Allow Enter key
+    document.getElementById('urlInput').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') startDownload();
+    });
+</script>
+
+</body>
+</html>
