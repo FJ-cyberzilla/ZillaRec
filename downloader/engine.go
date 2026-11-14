@@ -108,15 +108,15 @@ func Run(ctx context.Context, videoURL, formatSpec, cookiePath, outDir string, c
 	waitErr := cmd.Wait()
 
 	if scanErr != nil {
-		return nil, fmt.Errorf("read yt-dlp output: %w", scanErr)
+		return nil, AnalyzeError(fmt.Errorf("read yt-dlp output: %w", scanErr), stderr.String())
 	}
 	if waitErr != nil {
 		// Surface stderr, it has the real reason.
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
-			return nil, fmt.Errorf("yt-dlp: %w", waitErr)
+			return nil, AnalyzeError(fmt.Errorf("yt-dlp: %w", waitErr), "")
 		}
-		return nil, fmt.Errorf("yt-dlp: %w\n%s", waitErr, msg)
+		return nil, AnalyzeError(fmt.Errorf("yt-dlp: %w", waitErr), msg)
 	}
 
 	files := newMP4s(outDir, before)
