@@ -1,0 +1,56 @@
+# ==============================================================================
+#  ZILLA-REC — CodeQL Advanced Security Analysis
+# ==============================================================================
+name: "CodeQL Advanced"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '38 21 * * 4'   # weekly, Thursday 21:38 UTC
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    permissions:
+      security-events: write   # required to upload results
+      packages: read           # required to fetch internal CodeQL packs
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: go
+            build-mode: manual   # ← changed from autobuild
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4   # ← changed from v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3   # ← changed from v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Run manual build steps
+        if: matrix.build-mode == 'manual'
+        shell: bash
+        run: make build            # ← real build, not the placeholder
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3   # ← changed from v4
+        with:
+          category: "/language:${{ matrix.language }}"
