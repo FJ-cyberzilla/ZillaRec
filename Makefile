@@ -80,7 +80,7 @@ run: build
 
 server: build
 	@printf "$(GREEN)[SERVER]$(RESET) Starting local web server mode...\n"
-	@./$(BINARY_NAME) web
+	@./$(BINARY_NAME) web || true
 
 clean:
 	@printf "$(YELLOW)[CLEAN]$(RESET) Removing build artifacts and temp files...\n"

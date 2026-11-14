@@ -34,11 +34,19 @@ func RunServer(addr string) error {
 	mux.Handle("/", http.FileServer(http.FS(subFS)))
 	mux.HandleFunc("/api/download", handleDownload)
 
-	fmt.Println("==========================================")
-	fmt.Println(" FJ™ CYBERTRONIC SYSTEMS - WEB INTERFACE")
-	fmt.Println("==========================================")
-	fmt.Printf("Server running at: http://%s\n", addr)
-	fmt.Println("Press Ctrl+C to stop.")
+	const (
+		cyan    = "\033[1;36m"
+		magenta = "\033[1;35m"
+		green   = "\033[1;32m"
+		yellow  = "\033[1;33m"
+		reset   = "\033[0m"
+	)
+
+	fmt.Printf("%s==========================================%s\n", cyan, reset)
+	fmt.Printf("%s FJ™ CYBERTRONIC SYSTEMS - WEB INTERFACE%s\n", magenta, reset)
+	fmt.Printf("%s==========================================%s\n", cyan, reset)
+	fmt.Printf("%sServer running at:%s %shttp://%s%s\n", yellow, reset, green, addr, reset)
+	fmt.Printf("%sPress Ctrl+C to stop.%s\n", cyan, reset)
 
 	return http.ListenAndServe(addr, mux)
 }
