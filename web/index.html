@@ -223,6 +223,15 @@
 
     <div class="input-group">
         <input type="text" id="urlInput" placeholder="PASTE YOUTUBE URL HERE..." autocomplete="off">
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <label for="cookieSelect" style="font-size: 11px; color: var(--term-cyan);">COOKIES:</label>
+            <select id="cookieSelect" style="background: #000; border: 1px solid var(--term-green); color: var(--term-green); padding: 8px; font-size: 12px; flex: 1; outline: none;">
+                <option value="auto">Auto-Detect (cookies.txt / ~/.termux/cookies.txt)</option>
+                <option value="chrome">Chrome Browser (Direct Cookie Extraction)</option>
+                <option value="firefox">Firefox Browser (Direct Cookie Extraction)</option>
+                <option value="none">None (No Cookies)</option>
+            </select>
+        </div>
         <div class="btn-row">
             <button id="dlBtn" onclick="startDownload()">INITIATE DOWNLOAD</button>
             <button id="exitBtn" class="shutdown" onclick="shutdownServer()">SHUTDOWN SERVER</button>
@@ -283,7 +292,7 @@
             const response = await fetch('/api/download', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: url })
+                body: JSON.stringify({ url: url, cookieSource: document.getElementById('cookieSelect').value })
             });
 
             if (!response.ok) {

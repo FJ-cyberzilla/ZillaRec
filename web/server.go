@@ -19,7 +19,8 @@ import (
 var webFiles embed.FS
 
 type DownloadRequest struct {
-	URL string `json:"url"`
+	URL          string `json:"url"`
+	CookieSource string `json:"cookieSource"`
 }
 
 func RunServer(addr string) error {
@@ -96,25 +97,31 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Auto-detect cookies.txt in CWD or ~/.termux/cookies.txt
-	cookiePath := "cookies.txt"
-	if _, err := os.Stat(cookiePath); os.IsNotExist(err) {
-		if home, err := os.UserHomeDir(); err == nil {
-			altCookie := filepath.Join(home, ".termux", "cookies.txt")
-			if _, err := os.Stat(altCookie); err == nil {
-				cookiePath = altCookie
+	cookiePath := req.CookieSource
+	if cookiePath == "" || cookiePath == "auto" {
+		cookiePath = "cookies.txt"
+		if _, err := os.Stat(cookiePath); os.IsNotExist(err) {
+			if home, err := os.UserHomeDir(); err == nil {
+				altCookie := filepath.Join(home, ".termux", "cookies.txt")
+				if _, err := os.Stat(altCookie); err == nil {
+					cookiePath = altCookie
+				} else {
+					cookiePath = ""
+				}
 			} else {
 				cookiePath = ""
 			}
-		} else {
-			cookiePath = ""
 		}
+	} else if cookiePath == "none" {
+		cookiePath = ""
 	}
 
-	if cookiePath != "" {
-		sendEvent(map[string]interface{}{"type": "log", "message": fmt.Sprintf("[COOKIES] Detected cookie file: %s", cookiePath)})
+	if cookiePath == "chrome" || cookiePath == "firefox" {
+		sendEvent(map[string]interface{}{"type": "log", "message": fmt.Sprintf("[COOKIES] Extracting cookies directly from browser: %s", cookiePath)})
+	} else if cookiePath != "" {
+		sendEvent(map[string]interface{}{"type": "log", "message": fmt.Sprintf("[COOKIES] Using cookie file: %s", cookiePath)})
 	} else {
-		sendEvent(map[string]interface{}{"type": "log", "message": "[COOKIES] No cookies.txt found. Proceeding without cookies."})
+		sendEvent(map[string]interface{}{"type": "log", "message": "[COOKIES] No cookies selected. Proceeding without cookies."})
 	}
 
 	cb := downloader.Callbacks{
