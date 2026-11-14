@@ -10,6 +10,8 @@ import (
 	"zillarec/config"
 )
 
+var ErrUserExit = fmt.Errorf("user exited")
+
 // PromptQuality asks for a quality choice. It re-prompts on invalid input
 // and returns an error for an empty profile list or closed stdin.
 func (r *Renderer) PromptQuality(
@@ -27,12 +29,16 @@ func (r *Renderer) PromptQuality(
 
 	reader := bufio.NewReader(in)
 	for attempt := 0; attempt < 5; attempt++ {
-		r.write(fmt.Sprintf("Enter choice (default %s): ", profiles[0].ID))
+		r.write(fmt.Sprintf("Enter choice (default %s, 'q' to exit): ", profiles[0].ID))
 		line, err := reader.ReadString('\n')
 		if err != nil && line == "" {
 			return "", fmt.Errorf("reading choice: %w", err)
 		}
 		choice := strings.TrimSpace(line)
+
+		if strings.EqualFold(choice, "q") || strings.EqualFold(choice, "quit") || strings.EqualFold(choice, "exit") {
+			return "", ErrUserExit
+		}
 
 		if choice == "" {
 			return profiles[0].FormatSpec, nil

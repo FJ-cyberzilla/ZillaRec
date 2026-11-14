@@ -10,9 +10,11 @@ import (
 // Progress is already-parsed progress state. Callers own parsing yt-dlp
 // output; the renderer stays dumb and testable.
 type Progress struct {
-	Percent float64 // clamped to 0..100 for display
-	Speed   string
-	ETA     string
+        Percent  float64 // clamped to 0..100 for display
+        Speed    string
+        ETA      string
+        Title    string
+        Duration string
 }
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}

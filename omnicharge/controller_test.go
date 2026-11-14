@@ -42,7 +42,7 @@ func TestMemoryGovernor(t *testing.T) {
 }
 
 func TestHealthWatchdog(t *testing.T) {
-	wd := NewHealthWatchdog(3)
+	wd := NewHealthCatwatch(3)
 
 	// Test nil error (healthy)
 	status := wd.EvaluateError(nil)

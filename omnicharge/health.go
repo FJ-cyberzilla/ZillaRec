@@ -10,46 +10,46 @@ import (
 type ErrorCategory string
 
 const (
-	CategoryNone         ErrorCategory = "NONE"
-	CategoryNetwork      ErrorCategory = "NETWORK"
-	CategoryDNS          ErrorCategory = "DNS"
-	CategoryProxyVPN     ErrorCategory = "PROXY_VPN"
-	CategoryIPBan        ErrorCategory = "IP_BAN"
-	CategoryGeneric      ErrorCategory = "GENERIC"
+	CategoryNone     ErrorCategory = "NONE"
+	CategoryNetwork  ErrorCategory = "NETWORK"
+	CategoryDNS      ErrorCategory = "DNS"
+	CategoryProxyVPN ErrorCategory = "PROXY_VPN"
+	CategoryIPBan    ErrorCategory = "IP_BAN"
+	CategoryGeneric  ErrorCategory = "GENERIC"
 )
 
-// HealthStatus represents the current health state of the application.
+// HealthStatus represents the current health state observed by the Catwatch.
 type HealthStatus struct {
-	IsHealthy     bool
-	LastCategory  ErrorCategory
-	LastMessage   string
-	RetryCount    int
-	MaxRetries    int
-	ShouldAbort   bool
+	IsHealthy    bool
+	LastCategory ErrorCategory
+	LastMessage  string
+	RetryCount   int
+	MaxRetries   int
+	ShouldAbort  bool
 }
 
-// HealthWatchdog monitors download and network health using downloader error analysis.
-type HealthWatchdog struct {
+// HealthCatwatch monitors download and network health using downloader error analysis (with feline vigilance).
+type HealthCatwatch struct {
 	maxRetries int
 	retryCount int
 }
 
-// NewHealthWatchdog creates a new health watchdog with max retry limits.
-func NewHealthWatchdog(maxRetries int) *HealthWatchdog {
-	return &HealthWatchdog{
+// NewHealthCatwatch creates a new health catwatch with max retry limits.
+func NewHealthCatwatch(maxRetries int) *HealthCatwatch {
+	return &HealthCatwatch{
 		maxRetries: maxRetries,
 		retryCount: 0,
 	}
 }
 
 // EvaluateError processes an error using downloader.AnalyzeError and determines recovery action.
-func (hw *HealthWatchdog) EvaluateError(err error) HealthStatus {
+func (hc *HealthCatwatch) EvaluateError(err error) HealthStatus {
 	if err == nil {
-		hw.retryCount = 0
+		hc.retryCount = 0
 		return HealthStatus{
-			IsHealthy:   true,
+			IsHealthy:    true,
 			LastCategory: CategoryNone,
-			ShouldAbort: false,
+			ShouldAbort:  false,
 		}
 	}
 
@@ -62,7 +62,7 @@ func (hw *HealthWatchdog) EvaluateError(err error) HealthStatus {
 
 	if strings.Contains(lower, "youtube restriction") || strings.Contains(lower, "ip ban") {
 		cat = CategoryIPBan
-		shouldRetry = false // IP bans require abort / manual intervention
+		shouldRetry = false
 	} else if strings.Contains(lower, "dns error") {
 		cat = CategoryDNS
 	} else if strings.Contains(lower, "network error") {
@@ -72,8 +72,8 @@ func (hw *HealthWatchdog) EvaluateError(err error) HealthStatus {
 	}
 
 	if shouldRetry {
-		if hw.retryCount < hw.maxRetries {
-			hw.retryCount++
+		if hc.retryCount < hc.maxRetries {
+			hc.retryCount++
 		} else {
 			shouldRetry = false
 		}
@@ -83,24 +83,23 @@ func (hw *HealthWatchdog) EvaluateError(err error) HealthStatus {
 		IsHealthy:    false,
 		LastCategory: cat,
 		LastMessage:  msg,
-		RetryCount:   hw.retryCount,
-		MaxRetries:   hw.maxRetries,
+		RetryCount:   hc.retryCount,
+		MaxRetries:   hc.maxRetries,
 		ShouldAbort:  !shouldRetry,
 	}
 }
 
 // Reset clears retry counters on successful completion.
-func (hw *HealthWatchdog) Reset() {
-	hw.retryCount = 0
+func (hc *HealthCatwatch) Reset() {
+	hc.retryCount = 0
 }
 
 // BackoffDuration calculates exponential backoff delay based on current retry count.
-func (hw *HealthWatchdog) BackoffDuration() time.Duration {
-	if hw.retryCount <= 0 {
+func (hc *HealthCatwatch) BackoffDuration() time.Duration {
+	if hc.retryCount <= 0 {
 		return time.Second
 	}
-	// 2^retryCount seconds, capped at 30 seconds
-	sec := 1 << uint(hw.retryCount)
+	sec := 1 << uint(hc.retryCount)
 	if sec > 30 {
 		sec = 30
 	}

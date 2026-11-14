@@ -7,7 +7,7 @@ import (
 
 const (
 	SharedMovies  = "/storage/emulated/0/Movies"
-	AppSubfolder  = "YT-Downloader"
+	AppSubfolder  = "zillarec"
 	LocalFallback = "downloads"
 )
 

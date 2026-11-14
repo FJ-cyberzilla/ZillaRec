@@ -2,6 +2,7 @@
 /yt-downloader
 /yt-termux
 /bin/
+/zillarec
 *.exe
 
 # Downloads (output)

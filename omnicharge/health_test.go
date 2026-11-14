@@ -6,7 +6,7 @@ import (
 )
 
 func TestHealthWatchdogEvaluation(t *testing.T) {
-	wd := NewHealthWatchdog(2)
+	wd := NewHealthCatwatch(2)
 
 	// Test nil error (healthy)
 	status := wd.EvaluateError(nil)

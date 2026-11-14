@@ -15,7 +15,7 @@ MAGENTA:= \033[1;35m
 RESET  := \033[0m
 BOLD   := \033[1m
 
-.PHONY: all help build test diag update run server clean
+.PHONY: all help build build-linux install-wsl test diag update run server clean
 
 all: help
 
@@ -24,19 +24,30 @@ help:
 	@printf "$(OLIVE)  ZILLA-REC(R) VCR MASTER CONTROLLER & COMMAND CENTER$(RESET)\n"
 	@printf "$(CYAN)======================================================================$(RESET)\n"
 	@printf "$(GREEN)  Available Makefile Targets:$(RESET)\n"
-	@printf "    $(OLIVE)make build$(RESET)   - Build the $(BINARY_NAME) binary\n"
-	@printf "    $(OLIVE)make test$(RESET)    - Run all unit tests with verbose output\n"
-	@printf "    $(OLIVE)make diag$(RESET)    - Run diagnostics (go vet, tests, yt-dlp check)\n"
-	@printf "    $(OLIVE)make update$(RESET)  - Update yt-dlp and Go dependencies\n"
-	@printf "    $(OLIVE)make run$(RESET)     - Run the CLI downloader application\n"
-	@printf "    $(OLIVE)make server$(RESET)  - Start the Zilla-Rec web server interface\n"
-	@printf "    $(OLIVE)make clean$(RESET)   - Clean build artifacts and temporary files\n"
+	@printf "    $(OLIVE)make build$(RESET)        - Build the native $(BINARY_NAME) binary\n"
+	@printf "    $(OLIVE)make build-linux$(RESET)  - Cross-compile for Linux / WSL2\n"
+	@printf "    $(OLIVE)make install-wsl$(RESET)  - Run PowerShell suite to deploy into WSL2\n"
+	@printf "    $(OLIVE)make test$(RESET)         - Run all unit tests with verbose output\n"
+	@printf "    $(OLIVE)make diag$(RESET)         - Run diagnostics (go vet, tests, yt-dlp check)\n"
+	@printf "    $(OLIVE)make update$(RESET)       - Update yt-dlp and Go dependencies\n"
+	@printf "    $(OLIVE)make run$(RESET)          - Run the CLI downloader application\n"
+	@printf "    $(OLIVE)make server$(RESET)       - Start the Zilla-Rec web server interface\n"
+	@printf "    $(OLIVE)make clean$(RESET)        - Clean build artifacts and temporary files\n"
 	@printf "$(CYAN)======================================================================$(RESET)\n"
 
 build:
-	@printf "$(OLIVE)[BUILD]$(RESET) Compiling Zilla-Rec binary...\n"
+	@printf "$(OLIVE)[BUILD]$(RESET) Compiling native Zilla-Rec binary...\n"
 	@go build -v -o $(BINARY_NAME) .
 	@printf "$(GREEN)[SUCCESS]$(RESET) Binary built successfully: $(BOLD)./$(BINARY_NAME)$(RESET)\n"
+
+build-linux:
+	@printf "$(OLIVE)[BUILD-LINUX]$(RESET) Cross-compiling Zilla-Rec for Linux/WSL2...\n"
+	@GOOS=linux GOARCH=amd64 go build -v -o bin/$(BINARY_NAME)-linux .
+	@printf "$(GREEN)[SUCCESS]$(RESET) Linux binary built: $(BOLD)bin/$(BINARY_NAME)-linux$(RESET)\n"
+
+install-wsl: build-linux
+	@printf "$(OLIVE)[INSTALL-WSL]$(RESET) Triggering PowerShell deployment suite...\n"
+	@powershell -ExecutionPolicy Bypass -File install.ps1
 
 test:
 	@printf "$(OLIVE)[TEST]$(RESET) Running unit test suite...\n"
@@ -80,10 +91,11 @@ run: build
 
 server: build
 	@printf "$(OLIVE)[SERVER]$(RESET) Starting Zilla-Rec VCR web server mode...\n"
-	@./$(BINARY_NAME) web || true
+	@./$(BINARY_NAME) web
 
 clean:
 	@printf "$(RED)[CLEAN]$(RESET) Removing build artifacts and temp files...\n"
-	@rm -f $(BINARY_NAME) yt-downloader
+	@rm -f $(BINARY_NAME)
+	@rm -rf bin/
 	@go clean
 	@printf "$(GREEN)[CLEAN COMPLETE]$(RESET)\n"

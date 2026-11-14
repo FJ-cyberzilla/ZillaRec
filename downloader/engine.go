@@ -32,7 +32,7 @@ type Result struct {
 
 // progressTemplate makes yt-dlp emit machine-parseable progress lines.
 // Fields are separated by tabs to be unambiguous with printf's own spaces.
-const progressTemplate = "download:%(progress._percent_str)s\t%(progress._speed_str)s\t%(progress._eta_str)s"
+const progressTemplate = "download:%(progress._percent_str)s\t%(progress._speed_str)s\t%(progress._eta_str)s\t%(title)s\t%(duration_string)s"
 
 // destRe matches:  [download] Destination: foo.mp4
 //                  [Merger]   Merging formats into "foo.mp4"
@@ -162,14 +162,16 @@ func handleLine(line string, cb Callbacks, destinations *[]string) {
 // parseProgressTemplate splits the tab-separated template output.
 // yt-dlp leaves literal "N/A" when a value is unknown.
 func parseProgressTemplate(s string) Progress {
-	parts := strings.SplitN(s, "\t", 3)
-	for len(parts) < 3 {
+	parts := strings.SplitN(s, "\t", 5)
+	for len(parts) < 5 {
 		parts = append(parts, "")
 	}
 	return Progress{
-		Percent: ParsePercent(parts[0]),
-		Speed:   clean(parts[1]),
-		ETA:     clean(parts[2]),
+		Percent:  ParsePercent(parts[0]),
+		Speed:    clean(parts[1]),
+		ETA:      clean(parts[2]),
+		Title:    clean(parts[3]),
+		Duration: clean(parts[4]),
 	}
 }
 

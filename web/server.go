@@ -24,6 +24,19 @@ var masterCtrl *omnicharge.MasterController
 type DownloadRequest struct {
 	URL          string `json:"url"`
 	CookieSource string `json:"cookieSource"`
+	Quality      string `json:"quality"` // <-- ADDED
+}
+
+type SSEEvent struct {
+	Type     string   `json:"type"`
+	Message  string   `json:"message,omitempty"`
+	Percent  float64  `json:"percent,omitempty"`
+	Speed    string   `json:"speed,omitempty"`
+	ETA      string   `json:"eta,omitempty"`
+	Title    string   `json:"title,omitempty"`
+	Duration string   `json:"duration,omitempty"`
+	Dir      string   `json:"dir,omitempty"`     // <-- ADDED
+	Files    []string `json:"files,omitempty"`   // <-- ADDED
 }
 
 func RunServer(addr string) error {
@@ -82,9 +95,13 @@ func handleExit(w http.ResponseWriter, r *http.Request) {
 		masterCtrl.Stop()
 	}
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"message":"Server shutting down..."}`))
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
 	go func() {
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 		os.Exit(0)
 	}()
 }
@@ -111,7 +128,7 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	sendEvent := func(evt map[string]interface{}) {
+	sendEvent := func(evt SSEEvent) {
 		bs, _ := json.Marshal(evt)
 		_, _ = fmt.Fprintf(w, "data: %s\n\n", string(bs))
 		flusher.Flush()
@@ -124,17 +141,33 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 
 	outDir, err := storage.OutputDir()
 	if err != nil {
-		sendEvent(map[string]interface{}{"type": "error", "message": fmt.Sprintf("Output dir error: %v", err)})
+		sendEvent(SSEEvent{Type: "error", Message: fmt.Sprintf("Output dir error: %v", err)})
 		return
 	}
 
 	if masterCtrl != nil {
 		if _, err := masterCtrl.Security().ValidatePath(outDir); err != nil {
-			sendEvent(map[string]interface{}{"type": "error", "message": fmt.Sprintf("Security violation: %v", err)})
+			sendEvent(SSEEvent{Type: "error", Message: fmt.Sprintf("Security violation: %v", err)})
 			return
 		}
 	}
 
+	// --- QUALITY SELECTION LOGIC ---
+	var formatSpec string
+	switch req.Quality {
+	case "1080p":
+		formatSpec = "bestvideo[height<=1080]+bestaudio/bestvideo[width<=1080]+bestaudio/best[height<=1080]/best"
+	case "720p":
+		formatSpec = "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
+	case "480p":
+		formatSpec = "bestvideo[height<=480]+bestaudio/best[height<=480]/best"
+	default:
+		// "best" or fallback
+		formatSpec = "bestvideo+bestaudio/best"
+	}
+	sendEvent(SSEEvent{Type: "log", Message: fmt.Sprintf("[FORMAT] Requested quality: %s", req.Quality)})
+
+	// --- COOKIE LOGIC ---
 	cookiePath := req.CookieSource
 	if cookiePath == "" || cookiePath == "auto" {
 		cookiePath = "cookies.txt"
@@ -155,46 +188,46 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if cookiePath == "chrome" || cookiePath == "firefox" {
-		sendEvent(map[string]interface{}{"type": "log", "message": fmt.Sprintf("[COOKIES] Extracting cookies directly from browser: %s", cookiePath)})
+		sendEvent(SSEEvent{Type: "log", Message: fmt.Sprintf("[COOKIES] Extracting cookies directly from browser: %s", cookiePath)})
 	} else if cookiePath != "" {
-		sendEvent(map[string]interface{}{"type": "log", "message": fmt.Sprintf("[COOKIES] Using cookie file: %s", cookiePath)})
+		sendEvent(SSEEvent{Type: "log", Message: fmt.Sprintf("[COOKIES] Using cookie file: %s", cookiePath)})
 	} else {
-		sendEvent(map[string]interface{}{"type": "log", "message": "[COOKIES] No cookies selected. Proceeding without cookies."})
+		sendEvent(SSEEvent{Type: "log", Message: "[COOKIES] No cookies selected. Proceeding without cookies."})
 	}
 
 	cb := downloader.Callbacks{
 		OnProgress: func(p downloader.Progress) {
-			sendEvent(map[string]interface{}{
-				"type":    "progress",
-				"percent": p.Percent,
-				"speed":   p.Speed,
-				"eta":     p.ETA,
+			sendEvent(SSEEvent{
+				Type:     "progress",
+				Percent:  p.Percent * 100, // Convert 0.0-1.0 to 0-100
+				Speed:    p.Speed,
+				ETA:      p.ETA,
+				Title:    p.Title,
+				Duration: p.Duration,
 			})
 		},
 		OnDestination: func(dest string) {
-			sendEvent(map[string]interface{}{"type": "log", "message": fmt.Sprintf("[DEST] %s", dest)})
+			sendEvent(SSEEvent{Type: "destination", Message: dest})
 		},
 		OnMerging: func() {
-			sendEvent(map[string]interface{}{"type": "log", "message": "[MERGE] Merging video and audio streams..."})
+			sendEvent(SSEEvent{Type: "merging"}) // <-- Explicit Type for Frontend
 		},
 		OnLog: func(line string) {
-			sendEvent(map[string]interface{}{"type": "log", "message": line})
+			sendEvent(SSEEvent{Type: "log", Message: line})
 		},
 	}
 
-	res, err := downloader.Run(r.Context(), req.URL,
-		"bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
-		cookiePath, outDir, cb)
+	res, err := downloader.Run(r.Context(), req.URL, formatSpec, cookiePath, outDir, cb)
 
 	if err != nil {
 		if masterCtrl != nil {
 			healthStatus := masterCtrl.Watchdog().EvaluateError(err)
-			sendEvent(map[string]interface{}{
-				"type":    "error",
-				"message": fmt.Sprintf("[OMNICHARGE WATCHDOG] %s (Retry %d/%d)", healthStatus.LastMessage, healthStatus.RetryCount, healthStatus.MaxRetries),
+			sendEvent(SSEEvent{
+				Type:    "error",
+				Message: fmt.Sprintf("[OMNICHARGE WATCHDOG] %s (Retry %d/%d)", healthStatus.LastMessage, healthStatus.RetryCount, healthStatus.MaxRetries),
 			})
 		} else {
-			sendEvent(map[string]interface{}{"type": "error", "message": err.Error()})
+			sendEvent(SSEEvent{Type: "error", Message: err.Error()})
 		}
 		return
 	}
@@ -202,10 +235,18 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 	downloader.RegisterWithMediaStore(res.Files)
 	if masterCtrl != nil {
 		masterCtrl.Memory().FreeMemory()
+		for _, file := range res.Files {
+			if _, _, err := masterCtrl.Checksum().GenerateSidecar(file); err == nil {
+				sendEvent(SSEEvent{Type: "log", Message: fmt.Sprintf("[OMNICHARGE CHECKSUM] Generated SHA-256 sidecar for %s", filepath.Base(file))})
+			}
+		}
 	}
 
-	sendEvent(map[string]interface{}{
-		"type":    "success",
-		"message": fmt.Sprintf("✓ Download completed! Saved %d file(s) to %s", len(res.Files), res.OutputDir),
+	// Send final success event with files and dir
+	sendEvent(SSEEvent{
+		Type:  "success",
+		Dir:   res.OutputDir,
+		Files: res.Files,
+		Message: fmt.Sprintf("✓ Download completed! Saved %d file(s)", len(res.Files)),
 	})
 }
