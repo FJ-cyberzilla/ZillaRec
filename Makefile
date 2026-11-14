@@ -4,7 +4,7 @@
 
 SHELL       := /bin/bash
 BINARY_NAME := zillarec
-VERSION     := 1.0.1
+VERSION     := 1.0.2
 BIN_DIR     := bin
 GO          ?= go
 
