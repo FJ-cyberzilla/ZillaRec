@@ -1,63 +1,74 @@
 package main
 
 import (
-	"bufio"
+	"context"
 	"fmt"
-	"net/http"
 	"os"
-	"strings"
+	"os/signal"
+	"path/filepath"
+	"syscall"
+
 	"yt-termux/config"
 	"yt-termux/downloader"
-	"yt-termux/network"
+	"yt-termux/storage"
 )
 
 func main() {
-	// 1. Load application configuration & print active settings
+	if len(os.Args) < 2 {
+		fmt.Fprintln(os.Stderr, "usage: yt-downloader <video-url>")
+		os.Exit(2)
+	}
+	url := os.Args[1]
+
+	outDir, err := storage.OutputDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "output dir: %v\n", err)
+		os.Exit(1)
+	}
+
 	cfg := config.LoadDefaultConfig()
-	cfg.PrintConfig()
+	profiles := config.QualityProfiles()
 
-	// 2. Initialize custom Quad9 transport check
-	transport := network.NewQuad9Transport()
-	client := &http.Client{Transport: transport}
+	r := downloader.DefaultRenderer()
+	bar := downloader.NewProgressBar(r)
+	defer bar.EndProgress()
 
-	resp, err := client.Get("https://www.youtube.com")
+	spec, err := r.PromptQuality(os.Stdin, profiles)
 	if err != nil {
-		fmt.Printf("[Warning] Network check notice: %v\n", err)
-	} else {
-		resp.Body.Close()
-		fmt.Println("[Status] Secure connection established via Quad9 DNS.")
+		r.Error("%v", err)
+		os.Exit(1)
 	}
 
-	reader := bufio.NewReader(os.Stdin)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	fmt.Println("========================================")
-	fmt.Println("    TERMUX GOLANG HIGH-SPEED YOUTUBE    ")
-	fmt.Println("========================================")
-	
-	fmt.Print("Enter YouTube Video or Short URL: ")
-	urlInput, _ := reader.ReadString('\n')
-	urlInput = strings.TrimSpace(urlInput)
-
-	if urlInput == "" {
-		fmt.Println("[Error] URL cannot be empty.")
-		return
+	cb := downloader.Callbacks{
+		OnProgress: bar.Update,
+		OnDestination: func(dest string) {
+			bar.EndProgress()
+			r.Info("→ %s", filepath.Base(dest))
+		},
+		OnMerging: func() {
+			bar.EndProgress()
+			r.Info("merging…")
+		},
+		OnLog: func(line string) {
+			bar.EndProgress()
+			r.Info("%s", line)
+		},
 	}
 
-	// 3. Present quality selection menu using profiles from config module
-	profiles := config.GetQualityProfiles()
-	formatSpec := downloader.PromptQualityWithConfig(profiles)
-
-	// 4. Resolve cookie path securely from config settings
-	cookieFile := cfg.CookieFile
-	if _, err := os.Stat(cookieFile); os.IsNotExist(err) {
-		cookieFile = "" // Optional fallback if cookies.txt is missing
-	}
-
-	// 5. Execute download process
-	err = downloader.ExecuteDownload(urlInput, formatSpec, cookieFile)
+	res, err := downloader.Run(ctx, url, spec, cfg.CookieFile, outDir, cb)
+	bar.EndProgress()
 	if err != nil {
-		fmt.Printf("[Error] Download failed: %v\nVerify yt-dlp and ffmpeg are installed in Termux.\n", err)
-	} else {
-		fmt.Println("\n[Success] Video downloaded successfully!")
+		r.Error("%v", err)
+		os.Exit(1)
+	}
+
+	downloader.RegisterWithMediaStore(res.Files)
+
+	r.Success("saved %d file(s) to %s", len(res.Files), res.OutputDir)
+	for _, f := range res.Files {
+		r.Info("  %s", f)
 	}
 }
