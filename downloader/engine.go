@@ -64,8 +64,12 @@ func Run(ctx context.Context, videoURL, formatSpec, cookiePath, outDir string, c
 		"--merge-output-format", "mp4",
 	}
 	if cookiePath != "" {
-		if _, err := os.Stat(cookiePath); err == nil {
-			args = append(args, "--cookies", cookiePath)
+		if cookiePath == "chrome" || cookiePath == "firefox" {
+			args = append(args, "--cookies-from-browser", cookiePath)
+		} else {
+			if _, err := os.Stat(cookiePath); err == nil {
+				args = append(args, "--cookies", cookiePath)
+			}
 		}
 	}
 

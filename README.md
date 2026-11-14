@@ -16,9 +16,10 @@
 ## ⚡ Features
 
 - **Dual Interface:** Run it directly in the terminal (CLI) or start the local web server (`yt-termux web`) to use via your mobile browser.
-- **Interactive Quality Selection:** Choose video quality profiles interactively (`720p HD`, `1080p Full HD`, `4K Ultra HD`) before downloading.
-- **Retro Web UI:** A carefully crafted, pure-CSS "1986 Cybertron" terminal interface with CRT scanlines and glow effects.
-- **Animated Status UI:** Clean single-line animated status display with colorized spinners (`⠋⠙⠹...`), live progress bars, speed, ETA, and a clean final completion message.
+- **Real-Time Streaming Progress (SSE):** Web UI streams live progress updates via Server-Sent Events, powering a glowing 1986 retro progress bar with real-time percentage, speed, ETA, and logs.
+- **Direct Browser Cookie Extraction:** Choose between Auto-Detect, Chrome Browser (`--cookies-from-browser chrome`), Firefox Browser, or No Cookies directly from the Web UI dropdown.
+- **Interactive Quality Selection:** Choose video quality profiles interactively (`720p HD`, `1080p Full HD`, `4K Ultra HD`) before downloading in CLI mode.
+- **Retro Web UI:** A carefully crafted, pure-CSS "1986 Cybertron" terminal interface with CRT scanlines, glow effects, and server shutdown control (`/api/exit`).
 - **Comprehensive Error Handler:** Advanced error analyzer detecting and alerting on:
   - No internet connection / network unreachable
   - DNS resolution failures
@@ -79,7 +80,7 @@ Paste your URL when prompted, select your desired video quality profile from the
 ```bash
 yt-termux web
 ```
-Open `http://127.0.0.1:8080` in Chrome or Firefox on your Android device.
+Open `http://127.0.0.1:8080` in Chrome or Firefox on your Android device. You can select your cookie source (Auto-Detect, Chrome Browser cookies, Firefox, or None) and click **SHUTDOWN SERVER** to stop the server directly from the UI.
 
 ⚠️ **Security Note:** The web server binds to loopback only (`127.0.0.1`). It cannot be accessed by other devices on your Wi-Fi.
 
@@ -90,9 +91,9 @@ Open `http://127.0.0.1:8080` in Chrome or Firefox on your Android device.
 | File / Directory | Purpose |
 | :--- | :--- |
 | `main.go` | CLI entrypoint, quality profile prompt, and subcommand routing. |
-| `web/server.go` | Web server entrypoint embedding `web/index.html` and serving API. |
-| `web/index.html` | The 1986 retro web interface (CSS/JS). |
-| `downloader/engine.go` | Core `yt-dlp` wrapper with stderr capture and process-group kill. |
+| `web/server.go` | Web server entrypoint embedding `web/index.html` and serving SSE API. |
+| `web/index.html` | The 1986 retro web interface with SSE progress bar & cookie selector. |
+| `downloader/engine.go` | Core `yt-dlp` wrapper supporting `--cookies-from-browser` and progress parsing. |
 | `downloader/errors.go` | Comprehensive network, DNS, VPN/proxy, and YouTube IP ban error analyzer. |
 | `downloader/ui.go` | Terminal rendering, ANSI color management, and TTY detection. |
 | `downloader/ui_progress.go` | In-place animated status line and progress bar renderer. |
