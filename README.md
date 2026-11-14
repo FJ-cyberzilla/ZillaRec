@@ -8,7 +8,7 @@
 [![UI](https://img.shields.io/badge/UI-Vintage%20VHS%20VCR-39ff14?style=for-the-badge)]()
 [![License](https://img.shields.io/badge/License-MIT-d97736?style=for-the-badge)]()
 
-**A sleek, robust, and secure local CLI & Vintage VHS Web interface. Back in the day, a VCR captured anything you plugged into it. Today, Zilla-Rec captures any stream you paste into it. Powered by `yt-dlp`, engineered specifically for Termux on Android with advanced cross-platform memory governance and health watchdogs.**
+**A sleek, robust, and secure local CLI & Vintage VHS Web interface. Back in the day, a VCR captured anything you plugged into it. Today, Zilla-Rec captures any stream you paste into it. Powered by FJ-cyberzilla engineered specifically for Termux on Android with advanced cross-platform memory governance and health watchcats.**
 
 </div>
 
@@ -223,5 +223,6 @@ CI runs both on every push and pull request via .github/workflows/makefile.yml.
 
 <div align="center">
   <i>"Back in the day, a VCR captured anything you plugged into it. Today, we capture any stream you paste into it."</i><br>
-  <b>© ZILLA-REC® FJ™ cybertronic systems</b>
+  
+  <b>© ZILLA-REC® --- FJ™ cybertronic systems --- MMXXVI --- Autumn </b>
 </div>
