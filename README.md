@@ -15,93 +15,94 @@
 
 ## ⚡ Features
 
-- **Dual Interface:** Run it directly in the terminal (CLI) or spin up a local web server to use via your mobile browser.
+- **Dual Interface:** Run it directly in the terminal (CLI) or start the local web server (`yt-termux web`) to use via your mobile browser.
+- **Interactive Quality Selection:** Choose video quality profiles interactively (`720p HD`, `1080p Full HD`, `4K Ultra HD`) before downloading.
 - **Retro Web UI:** A carefully crafted, pure-CSS "1986 Cybertron" terminal interface with CRT scanlines and glow effects.
+- **Animated Status UI:** Clean single-line animated status display with colorized spinners (`⠋⠙⠹...`), live progress bars, speed, ETA, and a clean final completion message.
+- **Comprehensive Error Handler:** Advanced error analyzer detecting and alerting on:
+  - No internet connection / network unreachable
+  - DNS resolution failures
+  - VPN connection & proxy issues
+  - YouTube IP bans / rate limits (HTTP 429 / bot detection) & geo-restrictions
+- **Cosmetic Makefile Command Center:** Rich-colored Makefile targets for building, testing, diagnostics, updating, and running.
 - **Secure by Design:** The web server binds *only* to `127.0.0.1`. It is completely invisible to your local network and the internet.
-- **Robust Engine:** Uses `yt-dlp` with `--progress-template` for exact, reliable progress parsing. Kills orphaned processes on `Ctrl+C` using process groups.
 - **Smart Output:** Automatically registers downloaded files with Android's MediaStore so they appear instantly in your Gallery.
-- **Zero External Dependencies:** The web UI is compiled *into* the Go binary using `go:embed`. No Node.js, no React, no NPM.
+- **Zero External Dependencies:** The web UI is compiled *into* the Go binary using `go:embed`.
 
 ---
 
-## 🚀 Installation
+## 🚀 Installation & Setup
 
 ### Prerequisites
 You must have Termux, `yt-dlp`, and `ffmpeg` installed.
 ```bash
 pkg update && pkg upgrade
-pkg install golang yt-dlp ffmpeg
+pkg install golang yt-dlp ffmpeg make
+```
 
-Build from Source
-
+### Build and Run with Makefile
+We provide a rich cosmetic `Makefile` for all tasks:
 ```bash
-git clone https://github.com/yourusername/yt-termux.git
-cd yt-termux
+# Display help and available targets
+make help
 
-# Build the CLI version
-go build -o bin/yt-downloader main.go
+# Run system diagnostics (Go version, vet, tests, yt-dlp check)
+make diag
 
-# Build the Web Server version
-go build -o bin/yt-web server.go
+# Build the yt-termux binary
+make build
+
+# Run unit tests
+make test
+
+# Update yt-dlp and Go dependencies
+make update
+
+# Run CLI downloader
+make run
+
+# Start local web server mode
+make server
 ```
 
 ---
 
 🕹️ Usage
 
-1. The Terminal (CLI)
-
-The easiest way to download. Just run the binary and paste your link.
-
+### 1. Terminal CLI Mode
 ```bash
-./bin/yt-downloader
+yt-termux
 ```
+Paste your URL when prompted, select your desired video quality profile from the interactive menu, and watch the live animated progress bar.
 
-You will see the gradient ASCII banner. Paste your URL and hit Enter.
-
-2. The Browser (Web UI)
-
-Start the local web server:
-
+### 2. Browser Web UI Mode
 ```bash
-./bin/yt-web
+yt-termux web
 ```
+Open `http://127.0.0.1:8080` in Chrome or Firefox on your Android device.
 
-Open http://127.0.0.1:8080 in Chrome or Firefox on your Android device.
-
-⚠️ Security Note: The web server is bound to loopback only (127.0.0.1). It cannot be accessed by other devices on your Wi-Fi, guaranteeing your downloads and cookies remain private.
-
----
-
-🛠️ Architecture
-
-File / Directory Purpose
-main.go CLI entrypoint. Displays the gradient ASCII banner and prompts for input.
-server.go Web server entrypoint. Embeds web/index.html and serves the API.
-web/index.html The 1986 retro web interface (CSS/JS).
-downloader/engine.go Core yt-dlp wrapper. Handles process groups, stderr capture, and output parsing.
-downloader/ui.go Terminal rendering, ANSI color management, and TTY detection.
-downloader/media.go Integration with Android's MediaStore.
-config/ & storage/ Path resolution and default quality profiles.
+⚠️ **Security Note:** The web server binds to loopback only (`127.0.0.1`). It cannot be accessed by other devices on your Wi-Fi.
 
 ---
 
-📸 
+🛠️ Architecture & Layout
 
-"FJ™ Cybertronic Systems" - The Retro Web UI
+| File / Directory | Purpose |
+| :--- | :--- |
+| `main.go` | CLI entrypoint, quality profile prompt, and subcommand routing. |
+| `web/server.go` | Web server entrypoint embedding `web/index.html` and serving API. |
+| `web/index.html` | The 1986 retro web interface (CSS/JS). |
+| `downloader/engine.go` | Core `yt-dlp` wrapper with stderr capture and process-group kill. |
+| `downloader/errors.go` | Comprehensive network, DNS, VPN/proxy, and YouTube IP ban error analyzer. |
+| `downloader/ui.go` | Terminal rendering, ANSI color management, and TTY detection. |
+| `downloader/ui_progress.go` | In-place animated status line and progress bar renderer. |
+| `downloader/ui_prompt.go` | Interactive quality profile selection prompt. |
+| `downloader/media.go` | Integration with Android's MediaStore. |
+| `config/` & `storage/` | Configuration settings, quality profiles, and path resolution. |
 
 ---
-
-🔒 Security
-
-This tool is designed for personal, single-user environments.
-
-· Command Injection Safe: URLs are passed as isolated arguments to exec.Command, preventing shell injection.
-· No Cloud Processing: Everything runs 100% locally on your device.
-· Keep your cookies.txt file private and never commit it to GitHub.
 
 <div align="center">
   <i>"Bridging the gap between 1986 and 2026."</i><br>
   © FJ Cyberzilla
 </div>
-```
