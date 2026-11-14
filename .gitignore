@@ -1,20 +1,4 @@
-# Build artifacts
-/yt-downloader
-/yt-termux
 /bin/
-/zillarec
-*.exe
-
-# Downloads (output)
 /downloads/
-*.webm
-*.mp4
-*.mkv
-
-# Go
-*.test
-*.out
-
-# Editor / OS
-.DS_Store
-*.swp
+/zillarec
+*.sha256
