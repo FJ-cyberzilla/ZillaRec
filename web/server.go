@@ -1,14 +1,21 @@
 package web
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"syscall"
 	"time"
 
 	"zillarec/downloader"
@@ -19,12 +26,18 @@ import (
 //go:embed index.html
 var webFiles embed.FS
 
-var masterCtrl *omnicharge.MasterController
+var (
+	masterCtrl      *omnicharge.MasterController
+	ui              = downloader.DefaultRenderer()
+	activeDownloads atomic.Int32
+	shutdownOnce    sync.Once
+	triggerShutdown func()
+)
 
 type DownloadRequest struct {
 	URL          string `json:"url"`
 	CookieSource string `json:"cookieSource"`
-	Quality      string `json:"quality"` // <-- ADDED
+	Quality      string `json:"quality"`
 }
 
 type SSEEvent struct {
@@ -35,8 +48,8 @@ type SSEEvent struct {
 	ETA      string   `json:"eta,omitempty"`
 	Title    string   `json:"title,omitempty"`
 	Duration string   `json:"duration,omitempty"`
-	Dir      string   `json:"dir,omitempty"`     // <-- ADDED
-	Files    []string `json:"files,omitempty"`   // <-- ADDED
+	Dir      string   `json:"dir,omitempty"`
+	Files    []string `json:"files,omitempty"`
 }
 
 func RunServer(addr string) error {
@@ -53,28 +66,70 @@ func RunServer(addr string) error {
 	if err != nil {
 		return fmt.Errorf("sub fs: %w", err)
 	}
+
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.FS(subFS)))
 	mux.HandleFunc("/api/download", handleDownload)
 	mux.HandleFunc("/api/status", handleStatus)
 	mux.HandleFunc("/api/exit", handleExit)
 
-	const (
-		cyan    = "\033[1;36m"
-		magenta = "\033[1;35m"
-		green   = "\033[1;32m"
-		yellow  = "\033[1;33m"
-		reset   = "\033[0m"
-	)
+	serverCtx, stopRequests := context.WithCancel(context.Background())
+	defer stopRequests()
 
-	fmt.Printf("%s==========================================%s\n", cyan, reset)
-	fmt.Printf("%s OMNICHARGE MASTER CONTROLLER - WEB UI%s\n", magenta, reset)
-	fmt.Printf("%s==========================================%s\n", cyan, reset)
-	fmt.Printf("%sServer running at:%s %shttp://%s%s\n", yellow, reset, green, addr, reset)
-	fmt.Printf("%sPath Sandbox:%s %s\n", cyan, reset, masterCtrl.Security().BaseDir())
-	fmt.Printf("%sPress Ctrl+C or click Shutdown to stop.%s\n", cyan, reset)
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: mux,
+		BaseContext: func(_ net.Listener) context.Context {
+			return serverCtx
+		},
+	}
 
-	return http.ListenAndServe(addr, mux)
+	shutdownDone := make(chan error, 1)
+	triggerShutdown = func() {
+		shutdownOnce.Do(func() {
+			go func() {
+				ui.Warn("Shutting down server gracefully...")
+				stopRequests()
+
+				if masterCtrl != nil {
+					masterCtrl.Stop()
+				}
+
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+
+				shutdownDone <- srv.Shutdown(ctx)
+			}()
+		})
+	}
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	go func() {
+		if _, ok := <-sigCh; ok {
+			triggerShutdown()
+		}
+	}()
+
+	ui.Info("==========================================")
+	ui.Info(" OMNICHARGE MASTER CONTROLLER - WEB UI")
+	ui.Info("==========================================")
+	ui.Success("Server running at: http://%s", addr)
+	ui.Info("Path Sandbox: %s", masterCtrl.Security().BaseDir())
+	ui.Warn("Press Ctrl+C or click Shutdown to stop.")
+
+	err = srv.ListenAndServe()
+	if errors.Is(err, http.ErrServerClosed) {
+		if shutdownErr := <-shutdownDone; shutdownErr != nil {
+			ui.Error("Forced shutdown after timeout: %v", shutdownErr)
+			return shutdownErr
+		}
+		ui.Success("Server stopped cleanly.")
+		return nil
+	}
+	return err
 }
 
 func handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -91,19 +146,17 @@ func handleExit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if masterCtrl != nil {
-		masterCtrl.Stop()
-	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"message":"Server shutting down..."}`))
+	_, _ = w.Write([]byte(`{"message":"Server shutting down gracefully..."}`))
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
 	}
-	go func() {
-		time.Sleep(100 * time.Millisecond)
-		os.Exit(0)
-	}()
+
+	if triggerShutdown != nil {
+		triggerShutdown()
+	}
 }
 
 func handleDownload(w http.ResponseWriter, r *http.Request) {
@@ -128,15 +181,30 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
+	var sseMu sync.Mutex
 	sendEvent := func(evt SSEEvent) {
-		bs, _ := json.Marshal(evt)
+		if r.Context().Err() != nil {
+			return
+		}
+		bs, err := json.Marshal(evt)
+		if err != nil {
+			return
+		}
+		sseMu.Lock()
+		defer sseMu.Unlock()
 		_, _ = fmt.Fprintf(w, "data: %s\n\n", string(bs))
 		flusher.Flush()
 	}
 
 	if masterCtrl != nil {
-		masterCtrl.SetState(omnicharge.StateRunning)
-		defer masterCtrl.SetState(omnicharge.StateIdle)
+		if activeDownloads.Add(1) == 1 {
+			masterCtrl.SetState(omnicharge.StateRunning)
+		}
+		defer func() {
+			if activeDownloads.Add(-1) == 0 {
+				masterCtrl.SetState(omnicharge.StateIdle)
+			}
+		}()
 	}
 
 	outDir, err := storage.OutputDir()
@@ -152,54 +220,16 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// --- QUALITY SELECTION LOGIC ---
-	var formatSpec string
-	switch req.Quality {
-	case "1080p":
-		formatSpec = "bestvideo[height<=1080]+bestaudio/bestvideo[width<=1080]+bestaudio/best[height<=1080]/best"
-	case "720p":
-		formatSpec = "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
-	case "480p":
-		formatSpec = "bestvideo[height<=480]+bestaudio/best[height<=480]/best"
-	default:
-		// "best" or fallback
-		formatSpec = "bestvideo+bestaudio/best"
-	}
+	formatSpec := resolveFormatSpec(req.Quality)
 	sendEvent(SSEEvent{Type: "log", Message: fmt.Sprintf("[FORMAT] Requested quality: %s", req.Quality)})
 
-	// --- COOKIE LOGIC ---
-	cookiePath := req.CookieSource
-	if cookiePath == "" || cookiePath == "auto" {
-		cookiePath = "cookies.txt"
-		if _, err := os.Stat(cookiePath); os.IsNotExist(err) {
-			if home, err := os.UserHomeDir(); err == nil {
-				altCookie := filepath.Join(home, ".termux", "cookies.txt")
-				if _, err := os.Stat(altCookie); err == nil {
-					cookiePath = altCookie
-				} else {
-					cookiePath = ""
-				}
-			} else {
-				cookiePath = ""
-			}
-		}
-	} else if cookiePath == "none" {
-		cookiePath = ""
-	}
-
-	if cookiePath == "chrome" || cookiePath == "firefox" {
-		sendEvent(SSEEvent{Type: "log", Message: fmt.Sprintf("[COOKIES] Extracting cookies directly from browser: %s", cookiePath)})
-	} else if cookiePath != "" {
-		sendEvent(SSEEvent{Type: "log", Message: fmt.Sprintf("[COOKIES] Using cookie file: %s", cookiePath)})
-	} else {
-		sendEvent(SSEEvent{Type: "log", Message: "[COOKIES] No cookies selected. Proceeding without cookies."})
-	}
+	cookiePath := resolveCookieSource(req.CookieSource, sendEvent)
 
 	cb := downloader.Callbacks{
 		OnProgress: func(p downloader.Progress) {
 			sendEvent(SSEEvent{
 				Type:     "progress",
-				Percent:  p.Percent * 100, // Convert 0.0-1.0 to 0-100
+				Percent:  p.Percent * 100,
 				Speed:    p.Speed,
 				ETA:      p.ETA,
 				Title:    p.Title,
@@ -210,7 +240,7 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 			sendEvent(SSEEvent{Type: "destination", Message: dest})
 		},
 		OnMerging: func() {
-			sendEvent(SSEEvent{Type: "merging"}) // <-- Explicit Type for Frontend
+			sendEvent(SSEEvent{Type: "merging"})
 		},
 		OnLog: func(line string) {
 			sendEvent(SSEEvent{Type: "log", Message: line})
@@ -218,8 +248,10 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res, err := downloader.Run(r.Context(), req.URL, formatSpec, cookiePath, outDir, cb)
-
 	if err != nil {
+		if r.Context().Err() != nil {
+			return
+		}
 		if masterCtrl != nil {
 			healthStatus := masterCtrl.Watchdog().EvaluateError(err)
 			sendEvent(SSEEvent{
@@ -237,16 +269,68 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 		masterCtrl.Memory().FreeMemory()
 		for _, file := range res.Files {
 			if _, _, err := masterCtrl.Checksum().GenerateSidecar(file); err == nil {
-				sendEvent(SSEEvent{Type: "log", Message: fmt.Sprintf("[OMNICHARGE CHECKSUM] Generated SHA-256 sidecar for %s", filepath.Base(file))})
+				sendEvent(SSEEvent{
+					Type:    "log",
+					Message: fmt.Sprintf("[OMNICHARGE CHECKSUM] Generated SHA-256 sidecar for %s", filepath.Base(file)),
+				})
 			}
 		}
 	}
 
-	// Send final success event with files and dir
 	sendEvent(SSEEvent{
-		Type:  "success",
-		Dir:   res.OutputDir,
-		Files: res.Files,
+		Type:    "success",
+		Dir:     res.OutputDir,
+		Files:   res.Files,
 		Message: fmt.Sprintf("✓ Download completed! Saved %d file(s)", len(res.Files)),
 	})
+}
+
+func resolveFormatSpec(quality string) string {
+	switch quality {
+	case "1080p":
+		return "bestvideo[height<=1080]+bestaudio/bestvideo[width<=1080]+bestaudio/best[height<=1080]/best"
+	case "720p":
+		return "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
+	case "480p":
+		return "bestvideo[height<=480]+bestaudio/best[height<=480]/best"
+	default:
+		return "bestvideo+bestaudio/best"
+	}
+}
+
+func resolveCookieSource(source string, sendEvent func(SSEEvent)) string {
+	switch source {
+	case "none":
+		sendEvent(SSEEvent{Type: "log", Message: "[COOKIES] No cookies selected. Proceeding without cookies."})
+		return ""
+	case "chrome", "firefox":
+		sendEvent(SSEEvent{Type: "log", Message: fmt.Sprintf("[COOKIES] Extracting cookies directly from browser: %s", source)})
+		return source
+	case "", "auto":
+		if _, err := os.Stat("cookies.txt"); err == nil {
+			sendEvent(SSEEvent{Type: "log", Message: "[COOKIES] Using cookie file: cookies.txt"})
+			return "cookies.txt"
+		}
+		if home, err := os.UserHomeDir(); err == nil {
+			altCookie := filepath.Join(home, ".termux", "cookies.txt")
+			if _, err := os.Stat(altCookie); err == nil {
+				sendEvent(SSEEvent{Type: "log", Message: fmt.Sprintf("[COOKIES] Using cookie file: %s", altCookie)})
+				return altCookie
+			}
+		}
+		sendEvent(SSEEvent{Type: "log", Message: "[COOKIES] No cookies found. Proceeding without cookies."})
+		return ""
+	default:
+		if masterCtrl != nil {
+			safePath, err := masterCtrl.Security().ValidatePath(source)
+			if err != nil {
+				sendEvent(SSEEvent{Type: "log", Message: fmt.Sprintf("[COOKIES] Rejected unsafe cookie path: %v", err)})
+				return ""
+			}
+			sendEvent(SSEEvent{Type: "log", Message: fmt.Sprintf("[COOKIES] Using cookie file: %s", safePath)})
+			return safePath
+		}
+		sendEvent(SSEEvent{Type: "log", Message: fmt.Sprintf("[COOKIES] Using cookie file: %s", source)})
+		return source
+	}
 }

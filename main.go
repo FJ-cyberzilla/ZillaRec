@@ -132,7 +132,7 @@ func main() {
 
 	// Check for web mode subcommand
 	if len(os.Args) >= 2 && os.Args[1] == "web" {
-		addr := "0.0.0.0:8080"
+		addr := "127.0.0.1:8080"
 		if len(os.Args) >= 3 {
 			addr = os.Args[2]
 		}
