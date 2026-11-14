@@ -1,0 +1,68 @@
+name: Makefile CI
+
+on:
+  push:
+    branches: [ "main" ]
+    tags:     [ "v*" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: write      # needed for creating releases
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Build (native)
+        run: make build
+
+      - name: Run tests
+        run: make test
+
+      - name: Diagnostics
+        run: make diag
+        continue-on-error: true   # diag warns if yt-dlp isn't installed
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zillarec-linux-amd64
+          path: bin/zillarec
+          if-no-files-found: error
+
+  release:
+    # Only run when you push a tag like v1.0.0
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build release binary
+        run: make build-linux
+
+      - name: Create GitHub Release with binary
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bin/zillarec
+          generate_release_notes: true
