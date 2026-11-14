@@ -161,7 +161,7 @@ make server
 
 Open http://127.0.0.1:8080 in Chrome or Firefox on your Android device. Paste any stream URL, select your cookie source (Auto-Detect, Chrome Browser cookies, Firefox, or None), and click REC ●. Press POWER ⏻ to gracefully shut down the OmniCharge server directly from the VCR UI.
 
-⚠️ Security Note: The web server binds to loopback only (127.0.0.1). It cannot be accessed by other devices on your Wi-Fi.
+🦺 Safty Note: The web server binds to loopback ONLY (127.0.0.1). It CANNOT be accessed by other devices on your Wi-Fi.
 ---
 
 🛠️ Architecture & Layout
