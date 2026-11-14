@@ -12,6 +12,7 @@
             --term-dark: #003300;
             --term-red: #ff3333;
             --term-yellow: #ffcc00;
+            --term-cyan: #00ffff;
             --border-glow: 0 0 10px rgba(51, 255, 0, 0.5);
         }
 
@@ -34,7 +35,7 @@
 
         .container {
             width: 100%;
-            max-width: 700px;
+            max-width: 750px;
             border: 2px solid var(--term-green);
             padding: 20px;
             background: #000;
@@ -65,7 +66,7 @@
         }
 
         .header h1 {
-            font-size: 24px;
+            font-size: 22px;
             margin: 0;
             color: var(--term-yellow);
             text-shadow: 0 0 5px var(--term-yellow);
@@ -73,16 +74,22 @@
         }
 
         .header p {
-            font-size: 12px;
+            font-size: 11px;
             margin: 5px 0 0 0;
             opacity: 0.8;
+            color: var(--term-cyan);
         }
 
         .input-group {
             display: flex;
             flex-direction: column;
             gap: 10px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 10px;
         }
 
         input[type="text"] {
@@ -90,9 +97,10 @@
             border: 1px solid var(--term-green);
             color: var(--term-green);
             padding: 12px;
-            font-size: 16px;
+            font-size: 15px;
             outline: none;
             box-shadow: inset 0 0 5px rgba(51, 255, 0, 0.3);
+            width: 100%;
         }
 
         input[type="text"]:focus {
@@ -105,18 +113,30 @@
             color: var(--term-green);
             border: 1px solid var(--term-green);
             padding: 12px;
-            font-size: 16px;
+            font-size: 14px;
             cursor: pointer;
             text-transform: uppercase;
             font-weight: bold;
             letter-spacing: 1px;
             transition: all 0.2s;
+            flex: 1;
         }
 
         button:hover {
             background: var(--term-green);
             color: #000;
             box-shadow: var(--border-glow);
+        }
+
+        button.shutdown {
+            border-color: var(--term-red);
+            color: var(--term-red);
+            background: #200;
+        }
+        button.shutdown:hover {
+            background: var(--term-red);
+            color: #000;
+            box-shadow: 0 0 10px rgba(255, 51, 51, 0.8);
         }
 
         button:disabled {
@@ -126,18 +146,51 @@
             cursor: not-allowed;
         }
 
+        /* Progress Bar Section */
+        .progress-container {
+            margin-bottom: 15px;
+            border: 1px solid var(--term-cyan);
+            padding: 10px;
+            background: rgba(0, 255, 255, 0.03);
+            display: none;
+        }
+
+        .progress-bar-outer {
+            background: #001111;
+            border: 1px solid var(--term-cyan);
+            height: 20px;
+            position: relative;
+            margin-top: 5px;
+            margin-bottom: 5px;
+        }
+
+        .progress-bar-inner {
+            background: var(--term-cyan);
+            height: 100%;
+            width: 0%;
+            transition: width 0.1s linear;
+            box-shadow: 0 0 8px var(--term-cyan);
+        }
+
+        .progress-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--term-cyan);
+        }
+
         .terminal-output {
             background: #000;
             border: 1px solid var(--term-green);
             padding: 15px;
-            height: 200px;
+            height: 180px;
             overflow-y: auto;
-            font-size: 13px;
-            line-height: 1.5;
+            font-size: 12px;
+            line-height: 1.4;
             white-space: pre-wrap;
             word-wrap: break-word;
             color: var(--term-green);
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         .terminal-output.error { color: var(--term-red); border-color: var(--term-red); }
@@ -146,10 +199,9 @@
             text-align: center;
             font-size: 10px;
             opacity: 0.6;
-            margin-top: 20px;
+            margin-top: 10px;
         }
 
-        /* Blinking cursor */
         .cursor::after {
             content: "_";
             animation: blink 1s step-end infinite;
@@ -166,22 +218,36 @@
 <div class="container">
     <div class="header">
         <h1>FJ™ CYBERTRONIC SYSTEMS</h1>
-        <p>SYSTEM V.1.0 // YT DOWNLOADER</p>
+        <p>SECURE VIDEO DOWNLOADER // WEB ENGINE V2.0</p>
     </div>
 
     <div class="input-group">
-        <input type="text" id="urlInput" placeholder="ENTER VIDEO URL HERE..." autocomplete="off">
-        <button id="dlBtn" onclick="startDownload()">INITIATE DOWNLOAD</button>
+        <input type="text" id="urlInput" placeholder="PASTE YOUTUBE URL HERE..." autocomplete="off">
+        <div class="btn-row">
+            <button id="dlBtn" onclick="startDownload()">INITIATE DOWNLOAD</button>
+            <button id="exitBtn" class="shutdown" onclick="shutdownServer()">SHUTDOWN SERVER</button>
+        </div>
+    </div>
+
+    <div class="progress-container" id="progressContainer">
+        <div class="progress-stats">
+            <span id="progressPct">PROGRESS: 0.0%</span>
+            <span id="progressSpeed">SPEED: 0 KiB/s</span>
+            <span id="progressEta">ETA: --:--</span>
+        </div>
+        <div class="progress-bar-outer">
+            <div class="progress-bar-inner" id="progressBarInner"></div>
+        </div>
     </div>
 
     <div class="terminal-output" id="output">
         > SYSTEM READY...
-        > AWAITING INPUT<span class="cursor"></span>
+        > AWAITING TARGET URL<span class="cursor"></span>
     </div>
 
     <div class="footer">
-        © 1986 - 2026 FJ CYBERZILLA. ALL RIGHTS RESERVED.<br>
-        LOCAL SECURE ENVIRONMENT
+        © 1986 - 2026 FJ CYBERZILLA. LOCAL LOOPBACK ENCRYPTED.<br>
+        AUTO-COOKIE DETECTION ENABLED
     </div>
 </div>
 
@@ -190,9 +256,14 @@
         const url = document.getElementById('urlInput').value.trim();
         const btn = document.getElementById('dlBtn');
         const output = document.getElementById('output');
+        const progContainer = document.getElementById('progressContainer');
+        const progInner = document.getElementById('progressBarInner');
+        const progPct = document.getElementById('progressPct');
+        const progSpeed = document.getElementById('progressSpeed');
+        const progEta = document.getElementById('progressEta');
 
         if (!url) {
-            output.innerText = "> ERROR: NO URL DETECTED.\n> PLEASE ENTER A VALID LINK.";
+            output.innerText = "> ERROR: NO URL DETECTED.\n> PLEASE ENTER A VALID YOUTUBE LINK.";
             output.classList.add('error');
             return;
         }
@@ -201,26 +272,71 @@
         btn.disabled = true;
         btn.innerText = "DOWNLOADING...";
         output.classList.remove('error');
-        output.innerText = "> CONNECTING TO YT-DLP...\n> FETCHING METADATA...";
+        output.innerText = "> INITIALIZING STREAM CONNECTION...\n";
+        progContainer.style.display = "block";
+        progInner.style.width = "0%";
+        progPct.innerText = "PROGRESS: 0.0%";
+        progSpeed.innerText = "SPEED: --";
+        progEta.innerText = "ETA: --";
 
         try {
-            // Send POST request to local Go server
             const response = await fetch('/api/download', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url: url })
             });
 
-            const data = await response.json();
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(errText || "Server error");
+            }
 
-            if (response.ok) {
-                output.innerText = "> SUCCESS!\n\n" + data.message;
-            } else {
-                output.innerText = "> FATAL ERROR:\n\n" + data.message;
-                output.classList.add('error');
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n\n');
+                buffer = lines.pop(); // Keep unfinished chunk
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.substring(6));
+                            if (data.type === 'progress') {
+                                const pct = data.percent || 0;
+                                progInner.style.width = pct + "%";
+                                progPct.innerText = `PROGRESS: ${pct.toFixed(1)}%`;
+                                progSpeed.innerText = `SPEED: ${data.speed || '--'}`;
+                                progEta.innerText = `ETA: ${data.eta || '--'}`;
+                            } else if (data.type === 'log') {
+                                output.innerText += data.message + "\n";
+                                output.scrollTop = output.scrollHeight;
+                            } else if (data.type === 'success') {
+                                output.innerText += `\n> SUCCESS! SAVED TO: ${data.dir}\n`;
+                                if (data.files && data.files.length > 0) {
+                                    data.files.forEach(f => output.innerText += `> FILE: ${f}\n`);
+                                }
+                                progInner.style.width = "100%";
+                                progPct.innerText = "PROGRESS: 100.0%";
+                                output.scrollTop = output.scrollHeight;
+                            } else if (data.type === 'error') {
+                                output.innerText += `\n> ERROR: ${data.message}\n`;
+                                output.classList.add('error');
+                                output.scrollTop = output.scrollHeight;
+                            }
+                        } catch (e) {
+                            // Non-json chunk
+                        }
+                    }
+                }
             }
         } catch (err) {
-            output.innerText = "> CONNECTION ERROR:\n> Is the local Go server running?\n\n" + err.toString();
+            output.innerText += `\n> CONNECTION ERROR: ${err.message}\n`;
             output.classList.add('error');
         } finally {
             btn.disabled = false;
@@ -228,7 +344,18 @@
         }
     }
 
-    // Allow Enter key
+    async function shutdownServer() {
+        if (!confirm("Are you sure you want to shutdown the yt-termux web server?")) return;
+        const output = document.getElementById('output');
+        output.innerText = "> SHUTTING DOWN SERVER...";
+        try {
+            await fetch('/api/exit', { method: 'POST' });
+        } catch(e) {}
+        setTimeout(() => {
+            document.body.innerHTML = '<div style="color:#33ff00;text-align:center;padding:50vh 0;font-family:monospace;font-size:20px;">> SERVER OFFLINE.<br>You can now close this tab.</div>';
+        }, 500);
+    }
+
     document.getElementById('urlInput').addEventListener('keypress', function (e) {
         if (e.key === 'Enter') startDownload();
     });

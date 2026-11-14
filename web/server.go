@@ -1,15 +1,16 @@
 package web
 
 import (
-	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
-	"yt-termux/config"
 	"yt-termux/downloader"
 	"yt-termux/storage"
 )
@@ -21,10 +22,6 @@ type DownloadRequest struct {
 	URL string `json:"url"`
 }
 
-type DownloadResponse struct {
-	Message string `json:"message"`
-}
-
 func RunServer(addr string) error {
 	subFS, err := fs.Sub(webFiles, ".")
 	if err != nil {
@@ -33,6 +30,7 @@ func RunServer(addr string) error {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.FS(subFS)))
 	mux.HandleFunc("/api/download", handleDownload)
+	mux.HandleFunc("/api/exit", handleExit)
 
 	const (
 		cyan    = "\033[1;36m"
@@ -46,9 +44,22 @@ func RunServer(addr string) error {
 	fmt.Printf("%s FJ™ CYBERTRONIC SYSTEMS - WEB INTERFACE%s\n", magenta, reset)
 	fmt.Printf("%s==========================================%s\n", cyan, reset)
 	fmt.Printf("%sServer running at:%s %shttp://%s%s\n", yellow, reset, green, addr, reset)
-	fmt.Printf("%sPress Ctrl+C to stop.%s\n", cyan, reset)
+	fmt.Printf("%sPress Ctrl+C or click Shutdown to stop.%s\n", cyan, reset)
 
 	return http.ListenAndServe(addr, mux)
+}
+
+func handleExit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write([]byte(`{"message":"Server shutting down..."}`))
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		os.Exit(0)
+	}()
 }
 
 func handleDownload(w http.ResponseWriter, r *http.Request) {
@@ -59,49 +70,89 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 
 	var req DownloadRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.URL) == "" {
-		http.Error(w, `{"message":"Invalid request payload"}`, http.StatusBadRequest)
+		http.Error(w, `{"type":"error","message":"Invalid request payload"}`, http.StatusBadRequest)
 		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	sendEvent := func(evt map[string]interface{}) {
+		bs, _ := json.Marshal(evt)
+		_, _ = fmt.Fprintf(w, "data: %s\n\n", string(bs))
+		flusher.Flush()
 	}
 
 	outDir, err := storage.OutputDir()
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"message":"Output dir error: %v"}`, err), http.StatusInternalServerError)
+		sendEvent(map[string]interface{}{"type": "error", "message": fmt.Sprintf("Output dir error: %v", err)})
 		return
 	}
 
-	cfg := config.LoadDefaultConfig()
-	
-	var logBuilder strings.Builder
-	
+	// Auto-detect cookies.txt in CWD or ~/.termux/cookies.txt
+	cookiePath := "cookies.txt"
+	if _, err := os.Stat(cookiePath); os.IsNotExist(err) {
+		if home, err := os.UserHomeDir(); err == nil {
+			altCookie := filepath.Join(home, ".termux", "cookies.txt")
+			if _, err := os.Stat(altCookie); err == nil {
+				cookiePath = altCookie
+			} else {
+				cookiePath = ""
+			}
+		} else {
+			cookiePath = ""
+		}
+	}
+
+	if cookiePath != "" {
+		sendEvent(map[string]interface{}{"type": "log", "message": fmt.Sprintf("[COOKIES] Detected cookie file: %s", cookiePath)})
+	} else {
+		sendEvent(map[string]interface{}{"type": "log", "message": "[COOKIES] No cookies.txt found. Proceeding without cookies."})
+	}
+
 	cb := downloader.Callbacks{
+		OnProgress: func(p downloader.Progress) {
+			sendEvent(map[string]interface{}{
+				"type":    "progress",
+				"percent": p.Percent,
+				"speed":   p.Speed,
+				"eta":     p.ETA,
+			})
+		},
 		OnDestination: func(dest string) {
-			logBuilder.WriteString(fmt.Sprintf("> DESTINATION: %s\n", dest))
+			sendEvent(map[string]interface{}{"type": "log", "message": fmt.Sprintf("[DEST] %s", dest)})
 		},
 		OnMerging: func() {
-			logBuilder.WriteString("> MERGING STREAMS...\n")
+			sendEvent(map[string]interface{}{"type": "log", "message": "[MERGE] Merging video and audio streams..."})
 		},
 		OnLog: func(line string) {
-			logBuilder.WriteString(fmt.Sprintf("> %s\n", line))
+			sendEvent(map[string]interface{}{"type": "log", "message": line})
 		},
 	}
 
-	res, err := downloader.Run(context.Background(), req.URL,
+	res, err := downloader.Run(r.Context(), req.URL,
 		"bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
-		cfg.CookieFile, outDir, cb)
+		cookiePath, outDir, cb)
 
-	w.Header().Set("Content-Type", "application/json")
-	
 	if err != nil {
-		logBuilder.WriteString(fmt.Sprintf("> ERROR: %v\n", err))
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(DownloadResponse{Message: logBuilder.String()})
+		sendEvent(map[string]interface{}{"type": "error", "message": err.Error()})
 		return
 	}
 
-	logBuilder.WriteString(fmt.Sprintf("> SAVED %d FILE(S) TO %s\n", len(res.Files), res.OutputDir))
-	for _, f := range res.Files {
-		logBuilder.WriteString(fmt.Sprintf("> FILE: %s\n", f))
+	var files []string
+	if res != nil {
+		files = res.Files
 	}
-
-	_ = json.NewEncoder(w).Encode(DownloadResponse{Message: logBuilder.String()})
+	sendEvent(map[string]interface{}{
+		"type":  "success",
+		"files": files,
+		"dir":   outDir,
+	})
 }
