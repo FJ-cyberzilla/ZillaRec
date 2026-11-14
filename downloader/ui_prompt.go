@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"yt-termux/config"
+	"zillarec/config"
 )
 
 // PromptQuality asks for a quality choice. It re-prompts on invalid input

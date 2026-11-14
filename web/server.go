@@ -11,12 +11,15 @@ import (
 	"strings"
 	"time"
 
-	"yt-termux/downloader"
-	"yt-termux/storage"
+	"zillarec/downloader"
+	"zillarec/omnicharge"
+	"zillarec/storage"
 )
 
 //go:embed index.html
 var webFiles embed.FS
+
+var masterCtrl *omnicharge.MasterController
 
 type DownloadRequest struct {
 	URL          string `json:"url"`
@@ -24,6 +27,15 @@ type DownloadRequest struct {
 }
 
 func RunServer(addr string) error {
+	outDir, err := storage.OutputDir()
+	if err != nil {
+		outDir = "."
+	}
+	masterCtrl, err = omnicharge.NewMasterController(outDir, 3)
+	if err != nil {
+		return fmt.Errorf("failed to init omnicharge master controller: %w", err)
+	}
+
 	subFS, err := fs.Sub(webFiles, ".")
 	if err != nil {
 		return fmt.Errorf("sub fs: %w", err)
@@ -31,6 +43,7 @@ func RunServer(addr string) error {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.FS(subFS)))
 	mux.HandleFunc("/api/download", handleDownload)
+	mux.HandleFunc("/api/status", handleStatus)
 	mux.HandleFunc("/api/exit", handleExit)
 
 	const (
@@ -42,18 +55,31 @@ func RunServer(addr string) error {
 	)
 
 	fmt.Printf("%s==========================================%s\n", cyan, reset)
-	fmt.Printf("%s FJ™ CYBERTRONIC SYSTEMS - WEB INTERFACE%s\n", magenta, reset)
+	fmt.Printf("%s OMNICHARGE MASTER CONTROLLER - WEB UI%s\n", magenta, reset)
 	fmt.Printf("%s==========================================%s\n", cyan, reset)
 	fmt.Printf("%sServer running at:%s %shttp://%s%s\n", yellow, reset, green, addr, reset)
+	fmt.Printf("%sPath Sandbox:%s %s\n", cyan, reset, masterCtrl.Security().BaseDir())
 	fmt.Printf("%sPress Ctrl+C or click Shutdown to stop.%s\n", cyan, reset)
 
 	return http.ListenAndServe(addr, mux)
+}
+
+func handleStatus(w http.ResponseWriter, r *http.Request) {
+	if masterCtrl == nil {
+		http.Error(w, `{"error":"controller not initialized"}`, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(masterCtrl.Snapshot())
 }
 
 func handleExit(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
+	}
+	if masterCtrl != nil {
+		masterCtrl.Stop()
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write([]byte(`{"message":"Server shutting down..."}`))
@@ -91,10 +117,22 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 	}
 
+	if masterCtrl != nil {
+		masterCtrl.SetState(omnicharge.StateRunning)
+		defer masterCtrl.SetState(omnicharge.StateIdle)
+	}
+
 	outDir, err := storage.OutputDir()
 	if err != nil {
 		sendEvent(map[string]interface{}{"type": "error", "message": fmt.Sprintf("Output dir error: %v", err)})
 		return
+	}
+
+	if masterCtrl != nil {
+		if _, err := masterCtrl.Security().ValidatePath(outDir); err != nil {
+			sendEvent(map[string]interface{}{"type": "error", "message": fmt.Sprintf("Security violation: %v", err)})
+			return
+		}
 	}
 
 	cookiePath := req.CookieSource
@@ -149,17 +187,25 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 		cookiePath, outDir, cb)
 
 	if err != nil {
-		sendEvent(map[string]interface{}{"type": "error", "message": err.Error()})
+		if masterCtrl != nil {
+			healthStatus := masterCtrl.Watchdog().EvaluateError(err)
+			sendEvent(map[string]interface{}{
+				"type":    "error",
+				"message": fmt.Sprintf("[OMNICHARGE WATCHDOG] %s (Retry %d/%d)", healthStatus.LastMessage, healthStatus.RetryCount, healthStatus.MaxRetries),
+			})
+		} else {
+			sendEvent(map[string]interface{}{"type": "error", "message": err.Error()})
+		}
 		return
 	}
 
-	var files []string
-	if res != nil {
-		files = res.Files
+	downloader.RegisterWithMediaStore(res.Files)
+	if masterCtrl != nil {
+		masterCtrl.Memory().FreeMemory()
 	}
+
 	sendEvent(map[string]interface{}{
-		"type":  "success",
-		"files": files,
-		"dir":   outDir,
+		"type":    "success",
+		"message": fmt.Sprintf("✓ Download completed! Saved %d file(s) to %s", len(res.Files), res.OutputDir),
 	})
 }

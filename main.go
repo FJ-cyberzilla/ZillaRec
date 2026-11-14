@@ -9,10 +9,10 @@ import (
 	"strings"
 	"syscall"
 
-	"yt-termux/config"
-	"yt-termux/downloader"
-	"yt-termux/storage"
-	"yt-termux/web"
+	"zillarec/config"
+	"zillarec/downloader"
+	"zillarec/storage"
+	"zillarec/web"
 )
 
 // bannerLines: YT DOWNLOADER in a compact mini-font that fits phone screens.

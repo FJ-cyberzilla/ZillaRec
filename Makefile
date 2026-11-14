@@ -1,15 +1,15 @@
 # ==============================================================================
-#  FJ™ CYBERTRONIC SYSTEMS - YT-TERMUX MAKEFILE
+#  ZILLA-REC® VCR MASTER CONTROLLER - MAKEFILE
 # ==============================================================================
 
 SHELL := /bin/bash
-BINARY_NAME := yt-termux
+BINARY_NAME := zillarec
 VERSION := 1.0.0
 
-# ANSI Color Codes
+# ANSI Color Codes (Vintage Olive & Red Theme)
 CYAN   := \033[1;36m
 GREEN  := \033[1;32m
-YELLOW := \033[1;33m
+OLIVE  := \033[1;33m
 RED    := \033[1;31m
 MAGENTA:= \033[1;35m
 RESET  := \033[0m
@@ -21,29 +21,29 @@ all: help
 
 help:
 	@printf "$(CYAN)======================================================================$(RESET)\n"
-	@printf "$(MAGENTA)  FJ™ CYBERTRONIC SYSTEMS - YT-TERMUX COMMAND CENTER$(RESET)\n"
+	@printf "$(OLIVE)  ZILLA-REC(R) VCR MASTER CONTROLLER & COMMAND CENTER$(RESET)\n"
 	@printf "$(CYAN)======================================================================$(RESET)\n"
 	@printf "$(GREEN)  Available Makefile Targets:$(RESET)\n"
-	@printf "    $(YELLOW)make build$(RESET)   - Build the $(BINARY_NAME) binary\n"
-	@printf "    $(YELLOW)make test$(RESET)    - Run all unit tests with verbose output\n"
-	@printf "    $(YELLOW)make diag$(RESET)    - Run diagnostics (go vet, tests, yt-dlp check)\n"
-	@printf "    $(YELLOW)make update$(RESET)  - Update yt-dlp and Go dependencies\n"
-	@printf "    $(YELLOW)make run$(RESET)     - Run the CLI downloader application\n"
-	@printf "    $(YELLOW)make server$(RESET)  - Start the local web interface server\n"
-	@printf "    $(YELLOW)make clean$(RESET)   - Clean build artifacts and temporary files\n"
+	@printf "    $(OLIVE)make build$(RESET)   - Build the $(BINARY_NAME) binary\n"
+	@printf "    $(OLIVE)make test$(RESET)    - Run all unit tests with verbose output\n"
+	@printf "    $(OLIVE)make diag$(RESET)    - Run diagnostics (go vet, tests, yt-dlp check)\n"
+	@printf "    $(OLIVE)make update$(RESET)  - Update yt-dlp and Go dependencies\n"
+	@printf "    $(OLIVE)make run$(RESET)     - Run the CLI downloader application\n"
+	@printf "    $(OLIVE)make server$(RESET)  - Start the Zilla-Rec web server interface\n"
+	@printf "    $(OLIVE)make clean$(RESET)   - Clean build artifacts and temporary files\n"
 	@printf "$(CYAN)======================================================================$(RESET)\n"
 
 build:
-	@printf "$(GREEN)[BUILD]$(RESET) Compiling $(BINARY_NAME) binary...\n"
+	@printf "$(OLIVE)[BUILD]$(RESET) Compiling Zilla-Rec binary...\n"
 	@go build -v -o $(BINARY_NAME) .
 	@printf "$(GREEN)[SUCCESS]$(RESET) Binary built successfully: $(BOLD)./$(BINARY_NAME)$(RESET)\n"
 
 test:
-	@printf "$(GREEN)[TEST]$(RESET) Running unit test suite...\n"
+	@printf "$(OLIVE)[TEST]$(RESET) Running unit test suite...\n"
 	@go test -v ./...
 
 diag:
-	@printf "$(GREEN)[DIAG]$(RESET) Running comprehensive system diagnostics...\n"
+	@printf "$(OLIVE)[DIAG]$(RESET) Running comprehensive system diagnostics...\n"
 	@printf "  1. Checking Go version...\n"
 	@go version
 	@printf "  2. Running 'go vet'...\n"
@@ -59,7 +59,7 @@ diag:
 	@printf "$(GREEN)[DIAG COMPLETE]$(RESET) All diagnostics passed successfully!\n"
 
 update:
-	@printf "$(GREEN)[UPDATE]$(RESET) Updating yt-dlp and Go dependencies...\n"
+	@printf "$(OLIVE)[UPDATE]$(RESET) Updating yt-dlp and Go dependencies...\n"
 	@if command -v pip3 &> /dev/null; then \
 		pip3 install --upgrade yt-dlp || pip install --upgrade yt-dlp; \
 	elif command -v pip &> /dev/null; then \
@@ -67,7 +67,7 @@ update:
 	elif command -v pkg &> /dev/null; then \
 		pkg update && pkg upgrade yt-dlp; \
 	else \
-		printf "$(YELLOW)[WARNING]$(RESET) No package manager found for updating yt-dlp.\n"; \
+		printf "$(RED)[WARNING]$(RESET) No package manager found for updating yt-dlp.\n"; \
 	fi
 	@printf "  Updating Go modules...\n"
 	@go get -u ./...
@@ -75,15 +75,15 @@ update:
 	@printf "$(GREEN)[UPDATE COMPLETE]$(RESET) All dependencies updated successfully!\n"
 
 run: build
-	@printf "$(GREEN)[RUN]$(RESET) Starting YT-Termux CLI...\n"
+	@printf "$(OLIVE)[RUN]$(RESET) Starting Zilla-Rec CLI...\n"
 	@./$(BINARY_NAME)
 
 server: build
-	@printf "$(GREEN)[SERVER]$(RESET) Starting local web server mode...\n"
+	@printf "$(OLIVE)[SERVER]$(RESET) Starting Zilla-Rec VCR web server mode...\n"
 	@./$(BINARY_NAME) web || true
 
 clean:
-	@printf "$(YELLOW)[CLEAN]$(RESET) Removing build artifacts and temp files...\n"
+	@printf "$(RED)[CLEAN]$(RESET) Removing build artifacts and temp files...\n"
 	@rm -f $(BINARY_NAME) yt-downloader
 	@go clean
 	@printf "$(GREEN)[CLEAN COMPLETE]$(RESET)\n"

@@ -3,17 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FJ™ Cybertronic Systems // YT Downloader</title>
+    <title>Zilla-Rec® // Vintage VHS Master Controller</title>
     <style>
-        /* 1986 Terminal Aesthetic */
+        /* Vintage VHS / VCR Player Aesthetic */
         :root {
-            --bg-color: #050510;
-            --term-green: #33ff00;
-            --term-dark: #003300;
-            --term-red: #ff3333;
-            --term-yellow: #ffcc00;
-            --term-cyan: #00ffff;
-            --border-glow: 0 0 10px rgba(51, 255, 0, 0.5);
+            --vcr-housing: #252820;
+            --vcr-dark: #141610;
+            --vcr-panel: #1d2019;
+            --olive-green: #85925c;
+            --vintage-red: #b22222;
+            --tape-black: #111111;
+            --tape-brown: #2a2018;
+            --gold-accent: #d4af37;
+            --led-amber: #ffaa00;
+            --crt-green: #33ff00;
+            --crt-blue: #00ffff;
+            --border-glow: 0 0 12px rgba(133, 146, 92, 0.4);
         }
 
         * {
@@ -22,188 +27,370 @@
         }
 
         body {
-            background-color: var(--bg-color);
-            color: var(--term-green);
+            background-color: #0b0c0a;
+            color: #d0d5c0;
             margin: 0;
-            padding: 20px;
+            padding: 15px;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            text-shadow: 0 0 2px var(--term-green);
+            background-image: 
+                radial-gradient(circle at 50% 50%, #1a1e16 0%, #080907 100%);
         }
 
-        .container {
+        /* VCR Chassis Enclosure */
+        .vcr-chassis {
             width: 100%;
-            max-width: 750px;
-            border: 2px solid var(--term-green);
+            max-width: 820px;
+            background: linear-gradient(135deg, var(--vcr-housing) 0%, var(--vcr-dark) 100%);
+            border: 4px solid #33382b;
+            border-radius: 6px;
             padding: 20px;
-            background: #000;
-            box-shadow: var(--border-glow), inset 0 0 20px rgba(51, 255, 0, 0.1);
+            box-shadow: 
+                0 15px 35px rgba(0,0,0,0.8),
+                inset 0 2px 5px rgba(255,255,255,0.08),
+                inset 0 -3px 8px rgba(0,0,0,0.6);
             position: relative;
         }
 
-        /* CRT Scanline Effect */
-        .container::after {
-            content: " ";
+        /* Screw heads on corners */
+        .vcr-chassis::before {
+            content: "⊕               ⊕";
             display: block;
             position: absolute;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            right: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-            z-index: 2;
-            background-size: 100% 2px, 3px 100%;
+            top: 6px;
+            left: 15px;
+            right: 15px;
+            font-size: 10px;
+            color: #444a3a;
+            letter-spacing: 730px;
+            pointer-events: none;
+        }
+        .vcr-chassis::after {
+            content: "⊕               ⊕";
+            display: block;
+            position: absolute;
+            bottom: 6px;
+            left: 15px;
+            right: 15px;
+            font-size: 10px;
+            color: #444a3a;
+            letter-spacing: 730px;
             pointer-events: none;
         }
 
-        .header {
-            text-align: center;
+        /* Magnetic Tape Header Bar */
+        .magnetic-tape-header {
+            background: linear-gradient(90deg, #181310 0%, var(--tape-brown) 15%, var(--tape-black) 50%, var(--tape-brown) 85%, #181310 100%);
+            border: 2px solid #3a3225;
+            padding: 12px 20px;
             margin-bottom: 20px;
-            border-bottom: 1px dashed var(--term-green);
-            padding-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.9);
+            position: relative;
+            overflow: hidden;
         }
 
-        .header h1 {
-            font-size: 22px;
+        /* Magnetic tape sheen */
+        .magnetic-tape-header::after {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.4), transparent);
+        }
+
+        .brand-title {
+            font-size: 26px;
+            font-weight: bold;
+            letter-spacing: 3px;
             margin: 0;
-            color: var(--term-yellow);
-            text-shadow: 0 0 5px var(--term-yellow);
-            letter-spacing: 2px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.9);
         }
 
-        .header p {
+        .brand-zill {
+            color: var(--olive-green);
+            text-shadow: 0 0 10px rgba(133, 146, 92, 0.6);
+        }
+
+        .brand-rec {
+            color: var(--vintage-red);
+            text-shadow: 0 0 10px rgba(178, 34, 34, 0.8);
+        }
+
+        .brand-tm {
             font-size: 11px;
-            margin: 5px 0 0 0;
-            opacity: 0.8;
-            color: var(--term-cyan);
+            vertical-align: super;
+            color: var(--gold-accent);
         }
 
-        .input-group {
+        .vcr-badge {
+            font-size: 10px;
+            color: #a0a890;
+            border: 1px dashed #505840;
+            padding: 4px 8px;
+            background: rgba(0,0,0,0.4);
+            letter-spacing: 1px;
+        }
+
+        /* VHS Cassette Window / Deck Compartment */
+        .cassette-compartment {
+            background: #11130e;
+            border: 2px inset #2c3224;
+            padding: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+        }
+
+        .cassette-label {
+            font-size: 11px;
+            color: #909d7c;
+            letter-spacing: 1px;
+        }
+
+        .reel-housing {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .reel {
+            width: 32px;
+            height: 32px;
+            border: 3px dashed var(--olive-green);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: spinReel 6s linear infinite;
+            background: rgba(0,0,0,0.6);
+        }
+
+        .reel-hub {
+            width: 10px;
+            height: 10px;
+            background: var(--gold-accent);
+            border-radius: 50%;
+        }
+
+        @keyframes spinReel {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* LED Counter & Status Panel */
+        .led-panel {
+            background: #050604;
+            border: 2px solid #283020;
+            padding: 8px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            color: var(--led-amber);
+            font-weight: bold;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.9);
+        }
+
+        .led-display {
+            font-size: 18px;
+            letter-spacing: 2px;
+            text-shadow: 0 0 8px var(--led-amber);
+        }
+
+        .led-status {
+            font-size: 12px;
+            color: var(--crt-green);
+            text-shadow: 0 0 6px var(--crt-green);
+        }
+
+        /* Input Controls Area */
+        .control-panel {
+            background: var(--vcr-panel);
+            border: 1px solid #323a28;
+            padding: 15px;
+            margin-bottom: 15px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            margin-bottom: 15px;
+            gap: 12px;
         }
 
-        .btn-row {
+        .input-row {
             display: flex;
             gap: 10px;
         }
 
         input[type="text"] {
-            background: #000;
-            border: 1px solid var(--term-green);
-            color: var(--term-green);
+            background: #0b0d09;
+            border: 1px solid var(--olive-green);
+            color: var(--crt-green);
             padding: 12px;
-            font-size: 15px;
+            font-size: 14px;
             outline: none;
-            box-shadow: inset 0 0 5px rgba(51, 255, 0, 0.3);
             width: 100%;
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.8);
         }
 
         input[type="text"]:focus {
-            border-color: var(--term-yellow);
-            box-shadow: inset 0 0 10px rgba(255, 204, 0, 0.3);
+            border-color: var(--gold-accent);
+            box-shadow: 0 0 8px rgba(212, 175, 55, 0.4);
         }
 
-        button {
-            background: var(--term-dark);
-            color: var(--term-green);
-            border: 1px solid var(--term-green);
-            padding: 12px;
-            font-size: 14px;
+        select {
+            background: #0b0d09;
+            border: 1px solid var(--olive-green);
+            color: var(--olive-green);
+            padding: 10px;
+            font-size: 12px;
+            flex: 1;
+            outline: none;
+        }
+
+        /* VCR Tactile Buttons */
+        .vcr-buttons {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+        }
+
+        .vcr-btn {
+            background: linear-gradient(to bottom, #2c3224, #1a1e14);
+            color: #b0bc9c;
+            border: 1px solid #485238;
+            padding: 10px 5px;
+            font-size: 11px;
             cursor: pointer;
             text-transform: uppercase;
             font-weight: bold;
             letter-spacing: 1px;
-            transition: all 0.2s;
-            flex: 1;
+            text-align: center;
+            box-shadow: 0 3px 0 #10130c, 0 4px 6px rgba(0,0,0,0.5);
+            transition: all 0.1s ease;
         }
 
-        button:hover {
-            background: var(--term-green);
-            color: #000;
-            box-shadow: var(--border-glow);
+        .vcr-btn:hover {
+            background: linear-gradient(to bottom, #38422e, #22281a);
+            color: var(--crt-green);
+            border-color: var(--olive-green);
         }
 
-        button.shutdown {
-            border-color: var(--term-red);
-            color: var(--term-red);
-            background: #200;
-        }
-        button.shutdown:hover {
-            background: var(--term-red);
-            color: #000;
-            box-shadow: 0 0 10px rgba(255, 51, 51, 0.8);
+        .vcr-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #10130c, 0 2px 3px rgba(0,0,0,0.5);
         }
 
-        button:disabled {
-            border-color: #555;
-            color: #555;
-            background: #111;
+        .vcr-btn.rec-btn {
+            color: #ff6b6b;
+            border-color: #8a2020;
+            background: linear-gradient(to bottom, #3a1818, #200c0c);
+        }
+        .vcr-btn.rec-btn:hover {
+            background: linear-gradient(to bottom, #4e2020, #2c1010);
+            color: #ff3333;
+            border-color: var(--vintage-red);
+            box-shadow: 0 3px 0 #100606, 0 0 10px rgba(178, 34, 34, 0.6);
+        }
+
+        .vcr-btn.shutdown-btn {
+            color: #ffaa00;
+            border-color: #805500;
+            background: linear-gradient(to bottom, #382810, #201406);
+        }
+        .vcr-btn.shutdown-btn:hover {
+            background: linear-gradient(to bottom, #523a14, #2c1c08);
+            color: #ffcc00;
+            box-shadow: 0 3px 0 #100a02, 0 0 10px rgba(255, 170, 0, 0.6);
+        }
+
+        .vcr-btn:disabled {
+            opacity: 0.4;
             cursor: not-allowed;
+            transform: none !important;
         }
 
         /* Progress Bar Section */
         .progress-container {
             margin-bottom: 15px;
-            border: 1px solid var(--term-cyan);
+            border: 1px solid var(--crt-blue);
             padding: 10px;
-            background: rgba(0, 255, 255, 0.03);
+            background: rgba(0, 255, 255, 0.02);
             display: none;
         }
 
         .progress-bar-outer {
             background: #001111;
-            border: 1px solid var(--term-cyan);
-            height: 20px;
+            border: 1px solid var(--crt-blue);
+            height: 18px;
             position: relative;
             margin-top: 5px;
             margin-bottom: 5px;
         }
 
         .progress-bar-inner {
-            background: var(--term-cyan);
+            background: var(--crt-blue);
             height: 100%;
             width: 0%;
             transition: width 0.1s linear;
-            box-shadow: 0 0 8px var(--term-cyan);
+            box-shadow: 0 0 10px var(--crt-blue);
         }
 
         .progress-stats {
             display: flex;
             justify-content: space-between;
-            font-size: 12px;
-            color: var(--term-cyan);
+            font-size: 11px;
+            color: var(--crt-blue);
         }
 
-        .terminal-output {
+        /* CRT OSD Terminal Output */
+        .crt-output {
             background: #000;
-            border: 1px solid var(--term-green);
+            border: 2px solid #283020;
             padding: 15px;
-            height: 180px;
+            height: 170px;
             overflow-y: auto;
             font-size: 12px;
             line-height: 1.4;
             white-space: pre-wrap;
             word-wrap: break-word;
-            color: var(--term-green);
-            margin-bottom: 15px;
+            color: var(--crt-green);
+            position: relative;
+            box-shadow: inset 0 0 20px rgba(51, 255, 0, 0.15);
         }
 
-        .terminal-output.error { color: var(--term-red); border-color: var(--term-red); }
+        /* CRT Screen Scanline Overlay */
+        .crt-output::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.3) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 2;
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none;
+        }
+
+        .crt-output.error {
+            color: #ff3333;
+            border-color: var(--vintage-red);
+            box-shadow: inset 0 0 20px rgba(178, 34, 34, 0.3);
+        }
 
         .footer {
             text-align: center;
             font-size: 10px;
-            opacity: 0.6;
-            margin-top: 10px;
+            color: #6a7558;
+            margin-top: 15px;
+            letter-spacing: 1px;
         }
 
         .cursor::after {
-            content: "_";
+            content: "█";
             animation: blink 1s step-end infinite;
         }
 
@@ -215,29 +402,59 @@
 </head>
 <body>
 
-<div class="container">
-    <div class="header">
-        <h1>FJ™ CYBERTRONIC SYSTEMS</h1>
-        <p>SECURE VIDEO DOWNLOADER // WEB ENGINE V2.0</p>
+<div class="vcr-chassis">
+    <!-- Magnetic Tape Header -->
+    <div class="magnetic-tape-header">
+        <h1 class="brand-title">
+            <span class="brand-zill">Zill</span>-<span class="brand-rec">Rec</span><span class="brand-tm">®</span>
+        </h1>
+        <div class="vcr-badge">VHS HI-FI STEREO // MODEL VR-8600</div>
     </div>
 
-    <div class="input-group">
-        <input type="text" id="urlInput" placeholder="PASTE YOUTUBE URL HERE..." autocomplete="off">
-        <div style="display: flex; gap: 10px; align-items: center;">
-            <label for="cookieSelect" style="font-size: 11px; color: var(--term-cyan);">COOKIES:</label>
-            <select id="cookieSelect" style="background: #000; border: 1px solid var(--term-green); color: var(--term-green); padding: 8px; font-size: 12px; flex: 1; outline: none;">
+    <!-- Cassette Deck Window -->
+    <div class="cassette-compartment">
+        <div class="cassette-label">T-120 PRO CASSETTE // SP MODE</div>
+        <div class="reel-housing">
+            <div class="reel"><div class="reel-hub"></div></div>
+            <div style="font-size: 10px; color: var(--gold-accent); letter-spacing: 2px;">=== TAPE ===</div>
+            <div class="reel"><div class="reel-hub"></div></div>
+        </div>
+        <div class="cassette-label">AUTO TRACKING</div>
+    </div>
+
+    <!-- LED Counter & Mode Panel -->
+    <div class="led-panel">
+        <div class="led-display" id="vcrCounter">00:00:00</div>
+        <div class="led-status" id="vcrStatusMode">CH 03 // STANDBY</div>
+    </div>
+
+    <!-- Control & Input Panel -->
+    <div class="control-panel">
+        <div class="input-row">
+            <input type="text" id="urlInput" placeholder="INSERT YOUTUBE URL / STREAM TARGET..." autocomplete="off">
+        </div>
+        <div class="input-row">
+            <label for="cookieSelect" style="font-size: 11px; color: var(--olive-green); display: flex; align-items: center;">COOKIES:</label>
+            <select id="cookieSelect">
                 <option value="auto">Auto-Detect (cookies.txt / ~/.termux/cookies.txt)</option>
-                <option value="chrome">Chrome Browser (Direct Cookie Extraction)</option>
-                <option value="firefox">Firefox Browser (Direct Cookie Extraction)</option>
+                <option value="chrome">Chrome Browser (Direct Extraction)</option>
+                <option value="firefox">Firefox Browser (Direct Extraction)</option>
                 <option value="none">None (No Cookies)</option>
             </select>
         </div>
-        <div class="btn-row">
-            <button id="dlBtn" onclick="startDownload()">INITIATE DOWNLOAD</button>
-            <button id="exitBtn" class="shutdown" onclick="shutdownServer()">SHUTDOWN SERVER</button>
+
+        <!-- VCR Tactile Buttons -->
+        <div class="vcr-buttons">
+            <button class="vcr-btn" id="ejectBtn" onclick="resetVCR()">[ EJECT ]</button>
+            <button class="vcr-btn rec-btn" id="dlBtn" onclick="startDownload()">[ REC ● ]</button>
+            <button class="vcr-btn" id="playBtn" onclick="startDownload()">[ PLAY ▶ ]</button>
+            <button class="vcr-btn" id="stopBtn" onclick="stopVCR()">[ STOP ■ ]</button>
+            <button class="vcr-btn" id="rewBtn">[ REW ◄◄ ]</button>
+            <button class="vcr-btn shutdown-btn" id="exitBtn" onclick="shutdownServer()">[ POWER ⏻ ]</button>
         </div>
     </div>
 
+    <!-- Progress Bar -->
     <div class="progress-container" id="progressContainer">
         <div class="progress-stats">
             <span id="progressPct">PROGRESS: 0.0%</span>
@@ -249,44 +466,72 @@
         </div>
     </div>
 
-    <div class="terminal-output" id="output">
-        > SYSTEM READY...
-        > AWAITING TARGET URL<span class="cursor"></span>
+    <!-- CRT OSD Terminal Output -->
+    <div class="crt-output" id="output">
+> ZILLA-REC VCR MASTER CONTROLLER ONLINE.
+> READY FOR TAPE RECORDING & STREAM CAPTURE<span class="cursor"></span>
     </div>
 
     <div class="footer">
-        © 1986 - 2026 FJ CYBERZILLA. LOCAL LOOPBACK ENCRYPTED.<br>
-        AUTO-COOKIE DETECTION ENABLED
+        © 1986 - 2026 ZILLA-REC® SYSTEMS. ALL RIGHTS RESERVED. H.Q. STEREO DECK.
     </div>
 </div>
 
 <script>
+    let counterInterval = null;
+    let secondsElapsed = 0;
+
+    function startCounter() {
+        if (counterInterval) clearInterval(counterInterval);
+        secondsElapsed = 0;
+        counterInterval = setInterval(() => {
+            secondsElapsed++;
+            const hrs = String(Math.floor(secondsElapsed / 3600)).padStart(2, '0');
+            const mins = String(Math.floor((secondsElapsed % 3600) / 60)).padStart(2, '0');
+            const secs = String(secondsElapsed % 60).padStart(2, '0');
+            document.getElementById('vcrCounter').innerText = `${hrs}:${mins}:${secs}`;
+        }, 1000);
+    }
+
+    function stopCounter() {
+        if (counterInterval) {
+            clearInterval(counterInterval);
+            counterInterval = null;
+        }
+    }
+
     async function startDownload() {
         const url = document.getElementById('urlInput').value.trim();
-        const btn = document.getElementById('dlBtn');
+        const dlBtn = document.getElementById('dlBtn');
+        const playBtn = document.getElementById('playBtn');
         const output = document.getElementById('output');
         const progContainer = document.getElementById('progressContainer');
         const progInner = document.getElementById('progressBarInner');
         const progPct = document.getElementById('progressPct');
         const progSpeed = document.getElementById('progressSpeed');
         const progEta = document.getElementById('progressEta');
+        const statusMode = document.getElementById('vcrStatusMode');
 
         if (!url) {
-            output.innerText = "> ERROR: NO URL DETECTED.\n> PLEASE ENTER A VALID YOUTUBE LINK.";
+            output.innerText = "> ERROR: NO URL DETECTED IN TAPE TRAY.\n> PLEASE INSERT A VALID YOUTUBE STREAM LINK.";
             output.classList.add('error');
+            statusMode.innerText = "CH 03 // ERROR";
             return;
         }
 
         // UI state
-        btn.disabled = true;
-        btn.innerText = "DOWNLOADING...";
+        dlBtn.disabled = true;
+        playBtn.disabled = true;
+        dlBtn.innerText = "[ REC ● ]";
         output.classList.remove('error');
-        output.innerText = "> INITIALIZING STREAM CONNECTION...\n";
+        output.innerText = "> ENGAGING RECORD HEAD & AUDIO TRACK...\n";
         progContainer.style.display = "block";
         progInner.style.width = "0%";
         progPct.innerText = "PROGRESS: 0.0%";
         progSpeed.innerText = "SPEED: --";
         progEta.innerText = "ETA: --";
+        statusMode.innerText = "CH 03 // RECORDING [REC]";
+        startCounter();
 
         try {
             const response = await fetch('/api/download', {
@@ -297,7 +542,7 @@
 
             if (!response.ok) {
                 const errText = await response.text();
-                throw new Error(errText || "Server error");
+                throw new Error(errText || "VCR Deck Error");
             }
 
             const reader = response.body.getReader();
@@ -310,7 +555,7 @@
 
                 buffer += decoder.decode(value, { stream: true });
                 const lines = buffer.split('\n\n');
-                buffer = lines.pop(); // Keep unfinished chunk
+                buffer = lines.pop();
 
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
@@ -326,43 +571,67 @@
                                 output.innerText += data.message + "\n";
                                 output.scrollTop = output.scrollHeight;
                             } else if (data.type === 'success') {
-                                output.innerText += `\n> SUCCESS! SAVED TO: ${data.dir}\n`;
+                                output.innerText += `\n> RECORDING COMPLETE! SAVED TO: ${data.dir}\n`;
                                 if (data.files && data.files.length > 0) {
                                     data.files.forEach(f => output.innerText += `> FILE: ${f}\n`);
                                 }
                                 progInner.style.width = "100%";
                                 progPct.innerText = "PROGRESS: 100.0%";
                                 output.scrollTop = output.scrollHeight;
+                                statusMode.innerText = "CH 03 // PLAY (COMPLETED)";
                             } else if (data.type === 'error') {
-                                output.innerText += `\n> ERROR: ${data.message}\n`;
+                                output.innerText += `\n> VCR ERROR: ${data.message}\n`;
                                 output.classList.add('error');
                                 output.scrollTop = output.scrollHeight;
+                                statusMode.innerText = "CH 03 // ERROR";
                             }
-                        } catch (e) {
-                            // Non-json chunk
-                        }
+                        } catch (e) {}
                     }
                 }
             }
         } catch (err) {
-            output.innerText += `\n> CONNECTION ERROR: ${err.message}\n`;
+            output.innerText += `\n> DECK ERROR: ${err.message}\n`;
             output.classList.add('error');
+            statusMode.innerText = "CH 03 // FAULT";
         } finally {
-            btn.disabled = false;
-            btn.innerText = "INITIATE DOWNLOAD";
+            dlBtn.disabled = false;
+            playBtn.disabled = false;
+            stopCounter();
         }
     }
 
-    async function shutdownServer() {
-        if (!confirm("Are you sure you want to shutdown the yt-termux web server?")) return;
+    function stopVCR() {
+        stopCounter();
         const output = document.getElementById('output');
-        output.innerText = "> SHUTTING DOWN SERVER...";
+        output.innerText += "\n> DECK STOPPED BY USER OPERATOR.\n";
+        document.getElementById('vcrStatusMode').innerText = "CH 03 // STOPPED";
+        document.getElementById('dlBtn').disabled = false;
+        document.getElementById('playBtn').disabled = false;
+    }
+
+    function resetVCR() {
+        stopCounter();
+        document.getElementById('urlInput').value = "";
+        document.getElementById('output').innerText = "> VCR DECK EJECTED & RESET.\n> READY FOR NEW TAPE INSERTION.";
+        document.getElementById('output').classList.remove('error');
+        document.getElementById('progressContainer').style.display = "none";
+        document.getElementById('vcrCounter').innerText = "00:00:00";
+        document.getElementById('vcrStatusMode').innerText = "CH 03 // EJECTED";
+        document.getElementById('dlBtn').disabled = false;
+        document.getElementById('playBtn').disabled = false;
+    }
+
+    async function shutdownServer() {
+        if (!confirm("Power off Zilla-Rec® Master Controller server?")) return;
+        const output = document.getElementById('output');
+        output.innerText = "> POWERING DOWN VCR SYSTEM...";
+        document.getElementById('vcrStatusMode').innerText = "POWER OFF";
         try {
             await fetch('/api/exit', { method: 'POST' });
         } catch(e) {}
         setTimeout(() => {
-            document.body.innerHTML = '<div style="color:#33ff00;text-align:center;padding:50vh 0;font-family:monospace;font-size:20px;">> SERVER OFFLINE.<br>You can now close this tab.</div>';
-        }, 500);
+            document.body.innerHTML = '<div style="color:#85925c;text-align:center;padding:45vh 0;font-family:monospace;font-size:22px;background:#050604;">> ZILLA-REC® SYSTEM POWERED OFF.<br><span style="font-size:14px;color:#6a7558;">You can now close this tab safely.</span></div>';
+        }, 600);
     }
 
     document.getElementById('urlInput').addEventListener('keypress', function (e) {

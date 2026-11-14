@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"yt-termux/config"
+	"zillarec/config"
 )
 
 func TestParsePercent(t *testing.T) {
