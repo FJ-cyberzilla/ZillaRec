@@ -21,19 +21,24 @@ func LoadDefaultConfig() Config {
 func QualityProfiles() []QualityOption {
 	return []QualityOption{
 		{
-			ID:         "1",
-			Label:      "720p (Fast & low bandwidth)",
+			ID:         "best",
+			Label:      "Best Available",
+			FormatSpec: "bestvideo+bestaudio/best",
+		},
+		{
+			ID:         "1080p",
+			Label:      "1080p Full HD",
+			FormatSpec: "bestvideo[height<=1080]+bestaudio/bestvideo[width<=1080]+bestaudio/best[height<=1080]/best",
+		},
+		{
+			ID:         "720p",
+			Label:      "720p HD",
 			FormatSpec: "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
 		},
 		{
-			ID:         "2",
-			Label:      "1080p HD (landscape & shorts)",
-			FormatSpec: "bestvideo[height<=1080]+bestaudio/bestvideo[width<=1080]+bestaudio/best",
-		},
-		{
-			ID:         "3",
-			Label:      "4K Ultra HD",
-			FormatSpec: "bestvideo[height<=2160]+bestaudio/bestvideo[width<=2160]+bestaudio/best",
+			ID:         "480p",
+			Label:      "480p SD",
+			FormatSpec: "bestvideo[height<=480]+bestaudio/best[height<=480]/best",
 		},
 	}
 }

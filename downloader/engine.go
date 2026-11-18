@@ -3,26 +3,28 @@ package downloader
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"syscall"
+	"time"
 )
 
+// --- Structs & Callbacks ---
+
 type Callbacks struct {
-	// OnProgress receives already-parsed progress. Nil-safe.
-	OnProgress func(p Progress)
-	// OnDestination fires with the final file path yt-dlp reports.
+	OnProgress    func(p Progress)
 	OnDestination func(dest string)
-	// OnMerging fires once when yt-dlp starts merging.
-	OnMerging func()
-	// OnLog forwards non-progress output (info/warnings). Optional.
-	OnLog func(line string)
+	OnMerging     func()
+	OnLog         func(line string)
 }
 
 type Result struct {
@@ -30,12 +32,20 @@ type Result struct {
 	Files     []string
 }
 
-// progressTemplate makes yt-dlp emit machine-parseable progress lines.
-// Fields are separated by tabs to be unambiguous with printf's own spaces.
+// ServerState tracks runtime metrics for the Zilla-Rec® VR-8600 deck.
+type ServerState struct {
+	startTime time.Time
+	activeJob atomic.Bool
+}
+
+func NewServerState() *ServerState {
+	return &ServerState{startTime: time.Now()}
+}
+
+// --- yt-dlp Runner Logic ---
+
 const progressTemplate = "download:%(progress._percent_str)s\t%(progress._speed_str)s\t%(progress._eta_str)s\t%(title)s\t%(duration_string)s"
 
-// destRe matches:  [download] Destination: foo.mp4
-//                  [Merger]   Merging formats into "foo.mp4"
 var destRe = regexp.MustCompile(`(?:Destination:\s*|Merging formats into\s*")(.+?)"?\s*$`)
 
 func Run(ctx context.Context, videoURL, formatSpec, cookiePath, outDir string, cb Callbacks) (*Result, error) {
@@ -46,7 +56,6 @@ func Run(ctx context.Context, videoURL, formatSpec, cookiePath, outDir string, c
 		return nil, fmt.Errorf("create output dir: %w", err)
 	}
 
-	// Snapshot existing mp4s so collectMP4s only returns new ones.
 	before := collectMP4s(outDir)
 
 	args := []string{
@@ -74,10 +83,7 @@ func Run(ctx context.Context, videoURL, formatSpec, cookiePath, outDir string, c
 	}
 
 	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
-
-	// Put yt-dlp in its own process group so cancel kills ffmpeg too.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	// Belt-and-braces: on context cancel, kill the whole group.
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return nil
@@ -90,8 +96,6 @@ func Run(ctx context.Context, videoURL, formatSpec, cookiePath, outDir string, c
 		return nil, fmt.Errorf("stdout pipe: %w", err)
 	}
 
-	// Capture stderr instead of leaking to the terminal: it would corrupt
-	// the progress bar, and we only care about it on failure.
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 
@@ -115,7 +119,6 @@ func Run(ctx context.Context, videoURL, formatSpec, cookiePath, outDir string, c
 		return nil, AnalyzeError(fmt.Errorf("read yt-dlp output: %w", scanErr), stderr.String())
 	}
 	if waitErr != nil {
-		// Surface stderr, it has the real reason.
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
 			return nil, AnalyzeError(fmt.Errorf("yt-dlp: %w", waitErr), "")
@@ -124,7 +127,6 @@ func Run(ctx context.Context, videoURL, formatSpec, cookiePath, outDir string, c
 	}
 
 	files := newMP4s(outDir, before)
-	// Prefer files yt-dlp actually reported over directory diffing.
 	if len(destinations) > 0 {
 		files = dedupeAbs(destinations)
 	}
@@ -133,7 +135,6 @@ func Run(ctx context.Context, videoURL, formatSpec, cookiePath, outDir string, c
 }
 
 func handleLine(line string, cb Callbacks, destinations *[]string) {
-	// Progress line from our --progress-template.
 	if strings.HasPrefix(line, "download:") {
 		if cb.OnProgress != nil {
 			p := parseProgressTemplate(strings.TrimPrefix(line, "download:"))
@@ -159,8 +160,6 @@ func handleLine(line string, cb Callbacks, destinations *[]string) {
 	}
 }
 
-// parseProgressTemplate splits the tab-separated template output.
-// yt-dlp leaves literal "N/A" when a value is unknown.
 func parseProgressTemplate(s string) Progress {
 	parts := strings.SplitN(s, "\t", 5)
 	for len(parts) < 5 {
@@ -230,5 +229,147 @@ func dedupeAbs(paths []string) []string {
 	return out
 }
 
-// keep errors.Is reachable for callers that want to detect cancellation.
 var _ = errors.Is
+
+// --- HTTP Server Handlers ---
+
+func (s *ServerState) HandleStatus(w http.ResponseWriter, r *http.Request) {
+	uptime := int(time.Since(s.startTime).Seconds())
+	allocatedMB := 18.5
+	if mem, err := getProcessAllocatedMB(); err == nil {
+		allocatedMB = mem
+	}
+
+	stateStr := "IDLE"
+	if s.activeJob.Load() {
+		stateStr = "RECORDING"
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"state": stateStr,
+		"memory": map[string]any{
+			"allocated_mb": allocatedMB,
+		},
+		"health": map[string]any{
+			"is_healthy": true,
+		},
+		"uptime_sec": uptime,
+	})
+}
+
+func (s *ServerState) HandleDownload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		URL          string `json:"url"`
+		Quality      string `json:"quality"`
+		CookieSource string `json:"cookieSource"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	flener, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	sendEvent := func(eventType string, payload map[string]any) {
+		payload["type"] = eventType
+		data, _ := json.Marshal(payload)
+		_, _ = w.Write([]byte("data: " + string(data) + "\n\n"))
+		flener.Flush()
+	}
+
+	s.activeJob.Store(true)
+	defer s.activeJob.Store(false)
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	cb := Callbacks{
+		OnProgress: func(p Progress) {
+			sendEvent("progress", map[string]any{
+				"percent": p.Percent,
+				"speed":   p.Speed,
+				"eta":     p.ETA,
+			})
+		},
+		OnDestination: func(dest string) {
+			sendEvent("destination", map[string]any{
+				"message": dest,
+			})
+		},
+		OnMerging: func() {
+			sendEvent("merging", map[string]any{})
+		},
+		OnLog: func(line string) {
+			sendEvent("log", map[string]any{
+				"message": line,
+			})
+		},
+	}
+
+	outDir := "./downloads"
+	formatSpec := "bestvideo+bestaudio/best"
+	if req.Quality == "1080p" {
+		formatSpec = "bestvideo[height<=1080]+bestaudio/best[height<=1080]"
+	} else if req.Quality == "720p" {
+		formatSpec = "bestvideo[height<=720]+bestaudio/best[height<=720]"
+	} else if req.Quality == "480p" {
+		formatSpec = "bestvideo[height<=480]+bestaudio/best[height<=480]"
+	}
+
+	cookiePath := ""
+	if req.CookieSource != "none" {
+		cookiePath = req.CookieSource
+	}
+
+	res, err := Run(ctx, req.URL, formatSpec, cookiePath, outDir, cb)
+	if err != nil {
+		sendEvent("error", map[string]any{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	sendEvent("success", map[string]any{
+		"dir":   res.OutputDir,
+		"files": res.Files,
+	})
+}
+
+func HandleExit(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status":"shutting down"}`))
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		os.Exit(0)
+	}()
+}
+
+func getProcessAllocatedMB() (float64, error) {
+	pid := os.Getpid()
+	cmd := exec.Command("ps", "-o", "rss=", "-p", fmt.Sprintf("%d", pid))
+	out, err := cmd.Output()
+	if err != nil {
+		return 15.0, err
+	}
+	var kb float64
+	_, err = fmt.Sscan(string(out), &kb)
+	if err != nil {
+		return 15.0, err
+	}
+	return kb / 1024.0, nil
+}
