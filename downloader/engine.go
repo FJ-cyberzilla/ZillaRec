@@ -1,18 +1,17 @@
 package downloader
 
 import (
-	"bufio"
-	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
+        "bufio"
+        "context"
+        "encoding/json"
+        "fmt"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -32,6 +31,14 @@ type Result struct {
 	Files     []string
 }
 
+type Progress struct {
+	Percent  float64
+	Speed    string
+	ETA      string
+	Title    string
+	Duration string
+}
+
 // ServerState tracks runtime metrics for the Zilla-Rec® VR-8600 deck.
 type ServerState struct {
 	startTime time.Time
@@ -42,47 +49,133 @@ func NewServerState() *ServerState {
 	return &ServerState{startTime: time.Now()}
 }
 
-// --- yt-dlp Runner Logic ---
+// --- Orchestrated Job & Worker Pool Support ---
 
-const progressTemplate = "download:%(progress._percent_str)s\t%(progress._speed_str)s\t%(progress._eta_str)s\t%(title)s\t%(duration_string)s"
+type Job struct {
+	URL        string
+	Format     string
+	CookiePath string
+	OutDir     string
+	Callbacks  Callbacks
+	ResultChan chan<- JobResult
+}
 
-var destRe = regexp.MustCompile(`(?:Destination:\s*|Merging formats into\s*")(.+?)"?\s*$`)
+type JobResult struct {
+	Result *Result
+	Error  error
+}
+
+type WorkerPool struct {
+	maxWorkers int
+	jobChan    chan Job
+	wg         sync.WaitGroup
+	ctx        context.Context
+	cancel     context.CancelFunc
+}
+
+func NewWorkerPool(ctx context.Context, maxWorkers int, queueSize int) *WorkerPool {
+	c, cancel := context.WithCancel(ctx)
+	wp := &WorkerPool{
+		maxWorkers: maxWorkers,
+		jobChan:    make(chan Job, queueSize),
+		ctx:        c,
+		cancel:     cancel,
+	}
+	wp.start()
+	return wp
+}
+
+func (wp *WorkerPool) start() {
+	for i := 0; i < wp.maxWorkers; i++ {
+		wp.wg.Add(1)
+		go func() {
+			defer wp.wg.Done()
+			for {
+				select {
+				case <-wp.ctx.Done():
+					return
+				case job, ok := <-wp.jobChan:
+					if !ok {
+						return
+					}
+					res, err := RunWithRetry(wp.ctx, job.URL, job.Format, job.CookiePath, job.OutDir, job.Callbacks, 3)
+					job.ResultChan <- JobResult{Result: res, Error: err}
+				}
+			}
+		}()
+	}
+}
+
+func (wp *WorkerPool) Submit(job Job) {
+	select {
+	case <-wp.ctx.Done():
+		job.ResultChan <- JobResult{Result: nil, Error: wp.ctx.Err()}
+	case wp.jobChan <- job:
+	}
+}
+
+func (wp *WorkerPool) Close() {
+	wp.cancel()
+	close(wp.jobChan)
+	wp.wg.Wait()
+}
+
+// --- Python Worker IPC & Retry Orchestrator ---
+
+func RunWithRetry(ctx context.Context, videoURL, formatSpec, cookiePath, outDir string, cb Callbacks, maxRetries int) (*Result, error) {
+	var lastErr error
+	backoff := 1 * time.Second
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
+		res, err := Run(ctx, videoURL, formatSpec, cookiePath, outDir, cb)
+		if err == nil {
+			return res, nil
+		}
+
+		lastErr = err
+		if cb.OnLog != nil {
+			cb.OnLog(fmt.Sprintf("[RETRY] Attempt %d/%d failed: %v. Retrying in %v...", attempt, maxRetries, err, backoff))
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(backoff):
+			backoff *= 2
+			if backoff > 10*time.Second {
+				backoff = 10 * time.Second
+			}
+		}
+	}
+	return nil, fmt.Errorf("failed after %d retries: %w", maxRetries, lastErr)
+}
 
 func Run(ctx context.Context, videoURL, formatSpec, cookiePath, outDir string, cb Callbacks) (*Result, error) {
-	if _, err := exec.LookPath("yt-dlp"); err != nil {
-		return nil, fmt.Errorf("yt-dlp not found in PATH: %w", err)
+	if _, err := exec.LookPath("python3"); err != nil {
+		return nil, fmt.Errorf("python3 not found in PATH: %w", err)
 	}
+
+	workerScript := "worker.py"
+	if _, err := os.Stat(workerScript); os.IsNotExist(err) {
+		return nil, fmt.Errorf("worker.py not found: %w", err)
+	}
+
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create output dir: %w", err)
 	}
 
 	before := collectMP4s(outDir)
 
-	args := []string{
-		videoURL,
-		"-f", formatSpec,
-		"--newline",
-		"--no-warnings",
-		"--progress-template", progressTemplate,
-		"--socket-timeout", "15",
-		"--retries", "3",
-		"--fragment-retries", "3",
-		"-P", outDir,
-		"-o", "%(id)s-%(resolution)s.%(ext)s",
-		"--restrict-filenames",
-		"--merge-output-format", "mp4",
-	}
+	args := []string{workerScript, videoURL, "--format", formatSpec, "--output-dir", outDir}
 	if cookiePath != "" {
-		if cookiePath == "chrome" || cookiePath == "firefox" {
-			args = append(args, "--cookies-from-browser", cookiePath)
-		} else {
-			if _, err := os.Stat(cookiePath); err == nil {
-				args = append(args, "--cookies", cookiePath)
-			}
-		}
+		args = append(args, "--cookies", cookiePath)
 	}
 
-	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
+	cmd := exec.CommandContext(ctx, "python3", args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
@@ -100,30 +193,64 @@ func Run(ctx context.Context, videoURL, formatSpec, cookiePath, outDir string, c
 	cmd.Stderr = &stderr
 
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("start yt-dlp: %w", err)
+		return nil, fmt.Errorf("start worker.py: %w", err)
 	}
 
-	destinations := make([]string, 0, 4)
+	var destinations []string
 
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1<<20)
+
 	for scanner.Scan() {
 		line := scanner.Text()
-		handleLine(line, cb, &destinations)
-	}
-	scanErr := scanner.Err()
+		parts := strings.SplitN(line, "\t", 2)
+		prefix := parts[0]
+		payload := ""
+		if len(parts) > 1 {
+			payload = parts[1]
+		}
 
+		switch prefix {
+		case "download":
+			if cb.OnProgress != nil {
+				p := parseProgressTemplate(payload)
+				cb.OnProgress(p)
+			}
+		case "DEST":
+			destinations = append(destinations, payload)
+			if cb.OnDestination != nil {
+				cb.OnDestination(payload)
+			}
+			if strings.Contains(payload, "Merging") && cb.OnMerging != nil {
+				cb.OnMerging()
+			}
+		case "LOG":
+			if cb.OnLog != nil && payload != "" {
+				cb.OnLog(payload)
+			}
+		case "SUCCESS":
+			if cb.OnLog != nil {
+				cb.OnLog(payload)
+			}
+		case "ERROR":
+			if cb.OnLog != nil {
+				cb.OnLog(payload)
+			}
+		default:
+			if cb.OnLog != nil && line != "" {
+				cb.OnLog(line)
+			}
+		}
+	}
+
+        scanErr := scanner.Err()
 	waitErr := cmd.Wait()
 
 	if scanErr != nil {
-		return nil, AnalyzeError(fmt.Errorf("read yt-dlp output: %w", scanErr), stderr.String())
+		return nil, fmt.Errorf("read worker output: %w", scanErr)
 	}
 	if waitErr != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			return nil, AnalyzeError(fmt.Errorf("yt-dlp: %w", waitErr), "")
-		}
-		return nil, AnalyzeError(fmt.Errorf("yt-dlp: %w", waitErr), msg)
+		return nil, fmt.Errorf("worker execution failed: %w (stderr: %s)", waitErr, strings.TrimSpace(stderr.String()))
 	}
 
 	files := newMP4s(outDir, before)
@@ -132,32 +259,6 @@ func Run(ctx context.Context, videoURL, formatSpec, cookiePath, outDir string, c
 	}
 
 	return &Result{OutputDir: outDir, Files: files}, nil
-}
-
-func handleLine(line string, cb Callbacks, destinations *[]string) {
-	if strings.HasPrefix(line, "download:") {
-		if cb.OnProgress != nil {
-			p := parseProgressTemplate(strings.TrimPrefix(line, "download:"))
-			cb.OnProgress(p)
-		}
-		return
-	}
-
-	if m := destRe.FindStringSubmatch(line); m != nil {
-		dest := strings.TrimSpace(m[1])
-		*destinations = append(*destinations, dest)
-		if cb.OnDestination != nil {
-			cb.OnDestination(dest)
-		}
-		if strings.Contains(line, "Merging") && cb.OnMerging != nil {
-			cb.OnMerging()
-		}
-		return
-	}
-
-	if cb.OnLog != nil && strings.TrimSpace(line) != "" {
-		cb.OnLog(line)
-	}
 }
 
 func parseProgressTemplate(s string) Progress {
@@ -229,8 +330,6 @@ func dedupeAbs(paths []string) []string {
 	return out
 }
 
-var _ = errors.Is
-
 // --- HTTP Server Handlers ---
 
 func (s *ServerState) HandleStatus(w http.ResponseWriter, r *http.Request) {
@@ -275,7 +374,7 @@ func (s *ServerState) HandleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	flener, ok := w.(http.Flusher)
+	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
 		return
@@ -289,7 +388,7 @@ func (s *ServerState) HandleDownload(w http.ResponseWriter, r *http.Request) {
 		payload["type"] = eventType
 		data, _ := json.Marshal(payload)
 		_, _ = w.Write([]byte("data: " + string(data) + "\n\n"))
-		flener.Flush()
+		flusher.Flush()
 	}
 
 	s.activeJob.Store(true)
@@ -322,14 +421,7 @@ func (s *ServerState) HandleDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	outDir := "./downloads"
-	formatSpec := "bestvideo+bestaudio/best"
-	if req.Quality == "1080p" {
-		formatSpec = "bestvideo[height<=1080]+bestaudio/best[height<=1080]"
-	} else if req.Quality == "720p" {
-		formatSpec = "bestvideo[height<=720]+bestaudio/best[height<=720]"
-	} else if req.Quality == "480p" {
-		formatSpec = "bestvideo[height<=480]+bestaudio/best[height<=480]"
-	}
+	formatSpec := qualityToFormatSpec(req.Quality)
 
 	cookiePath := ""
 	if req.CookieSource != "none" {
@@ -348,6 +440,21 @@ func (s *ServerState) HandleDownload(w http.ResponseWriter, r *http.Request) {
 		"dir":   res.OutputDir,
 		"files": res.Files,
 	})
+}
+
+func qualityToFormatSpec(quality string) string {
+	switch quality {
+	case "1080p":
+		return "bestvideo[height<=1080]+bestaudio/best[height<=1080]"
+	case "720p":
+		return "bestvideo[height<=720]+bestaudio/best[height<=720]"
+	case "480p":
+		return "bestvideo[height<=480]+bestaudio/best[height<=480]"
+	case "audio":
+		return "bestaudio/best"
+	default:
+		return "bestvideo+bestaudio/best"
+	}
 }
 
 func HandleExit(w http.ResponseWriter, r *http.Request) {

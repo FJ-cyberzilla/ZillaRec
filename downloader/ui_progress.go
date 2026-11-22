@@ -7,15 +7,7 @@ import (
 	"golang.org/x/term"
 )
 
-// Progress is already-parsed progress state. Callers own parsing yt-dlp
-// output; the renderer stays dumb and testable.
-type Progress struct {
-        Percent  float64 // clamped to 0..100 for display
-        Speed    string
-        ETA      string
-        Title    string
-        Duration string
-}
+// Progress struct is defined in engine.go
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 

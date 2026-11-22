@@ -8,7 +8,7 @@
 [![UI](https://img.shields.io/badge/UI-Vintage%20VHS%20VCR-39ff14?style=for-the-badge)]()
 [![License](https://img.shields.io/badge/License-MIT-d97736?style=for-the-badge)]()
 
-**A sleek, robust, and secure local CLI & Vintage VHS Web interface. Back in the day, a VCR captured anything you plugged into it. Today, Zilla-Rec captures any stream you paste into it. Powered by FJ-cyberzilla engineered specifically for Termux on Android with advanced cross-platform memory governance and health watchcats.**
+**A sleek, robust, and secure local CLI & Vintage VHS Web interface. Back in the day, a VCR captured anything you plugged into it. Today, Zilla-Rec captures any stream you paste into it. Powered by FJ-cyberzilla engineered specifically for Termux on Android with cross-platform memory governance, health watchdogs, and a dedicated watchcat background watcher.**
 
 </div>
 
@@ -31,7 +31,7 @@
   - **State Machine:** (`IDLE`, `RUNNING`, `PAUSED`, `ERROR`, `TERMINATING`).
   - **Smart Pause and Resume:** Track downloaded byte offsets and operational state so users can pause a file, switch networks, or recover from dropped connections without restarting from zero.
   - **Cross-Platform Memory Governor:** Automatic platform detection (`DetectPlatform` for Android/Termux, WSL2, Linux, Windows, macOS) with configurable soft memory limits (`debug.SetMemoryLimit`), cooldown timers, and `FreeMemory`/`ForceFreeMemory` APIs.
-  - **Feline-Vigilant Health Catwatch & Background Watcher:** `StartWatcher` background goroutine monitoring heap usage against soft limits with automatic RAM reclamation, exponential backoff with jitter, and bit-shift overflow protection (`math/rand/v2`).
+  - **Health Watchdog & Watchcat Background Watcher:** Health watchdog evaluation for system/runtime state and recovery alongside `StartWatcher` (the watchcat background goroutine) monitoring heap usage against soft limits with automatic RAM reclamation, exponential backoff with jitter, and bit-shift overflow protection (`math/rand/v2`).
   - **SHA-256 Checksum & Sidecars:** Automatic SHA-256 computation and `.sha256` sidecar file generation upon download completion.
   - **Strict Path Sandboxing:** Secures the base directory against traversal.
 - **Comprehensive Error Handler:** Advanced error analyzer detecting and alerting on:
@@ -52,21 +52,15 @@
 
 ### Prerequisites
 You must have Termux, `yt-dlp`, and `ffmpeg` installed.
+
 ```bash
 pkg update && pkg upgrade
 pkg install golang yt-dlp ffmpeg make
-```
 
 Build and Run with the Makefile
-
-We provide a rich cosmetic Makefile acting as your command center.
-
-```bash
-
-Build from source
-
-```bash
-git clone https://github.com/FJ-cyberzilla/ZillaRec.git
+​We provide a rich cosmetic Makefile acting as your command center.
+​Build from source
+git clone [https://github.com/FJ-cyberzilla/ZillaRec.git](https://github.com/FJ-cyberzilla/ZillaRec.git)
 cd ZillaRec
 
 # Display the command center help menu
@@ -92,31 +86,15 @@ make server
 
 # Clean build artifacts
 make clean
-```
 
 Cross-platform builds
-
-```bash
-make build-linux      # → bin/zillarec-linux-amd64  (static, x86-64)
-make build-android    # → bin/zillarec-android-arm64
-make build-darwin     # → bin/zillarec-darwin-arm64
-make build-windows    # → bin/zillarec-windows-amd64.exe
-make build-all        # → all platforms
-```
-
-Release
-
-```bash
 # Generate checksums for all platform binaries
 make checksums
 
 # Upload binaries + checksums to a GitHub Release
 make release
-```
 
-make help output:
-
-```text
+make help output
 ======================================================================
   ZILLA-REC(R) VCR MASTER CONTROLLER & COMMAND CENTER
 ======================================================================
@@ -137,36 +115,20 @@ make help output:
     make release        - Upload linux+android binaries to GitHub Release
     make clean          - Remove build artifacts
 ======================================================================
-```
 
----
-
-🕹️ Usage
-
-1. Terminal CLI Mode (Local Capture)
-
-```bash
+Usage
+​1. Terminal CLI Mode (Local Capture)
 make run
 # OR
 ./bin/zillarec
-```
 
-Paste your URL when prompted, select your desired video quality profile from the interactive menu, and watch the live animated progress bar.
-
-2. Browser Web UI Mode (Zilla-Rec)
-
-```bash
+aste your URL when prompted, select your desired video quality profile from the interactive menu, and watch the live animated progress bar.
+​2. Browser Web UI Mode (Zilla-Rec)
 make server
-```
 
 Open http://127.0.0.1:8080 in Chrome or Firefox on your Android device. Paste any stream URL, select your cookie source (Auto-Detect, Chrome Browser cookies, Firefox, or None), and click REC ●. Press POWER ⏻ to gracefully shut down the OmniCharge server directly from the VCR UI.
-
-🦺 Safty Note: The web server binds to loopback ONLY (127.0.0.1). It CANNOT be accessed by other devices on your Wi-Fi.
----
-
-🛠️ Architecture & Layout
-
-```text
+​Safety Note: The web server binds to loopback ONLY (127.0.0.1). It CANNOT be accessed by other devices on your Wi-Fi.
+​🛠️ Architecture & Layout
 ZillaRec/
 ├── .github/workflows/
 │   └── makefile.yml         # CI: build+test on push, publish release on tag
@@ -190,7 +152,7 @@ ZillaRec/
 ├── downloads/               # Default output directory (git-ignored)
 ├── omnicharge/              # Master Controller (State, Health, Memory, Security)
 │   ├── controller.go        # State machine & lifecycle
-│   ├── health.go            # Watchdog, background memory watcher & retries
+│   ├── health.go            # Health watchdog, watchcat watcher & retries
 │   ├── memory.go            # Cross-platform memory governor & limits
 │   ├── security.go          # Path sandboxing
 │   └── checksum.go          # SHA-256 sidecar generation
@@ -199,30 +161,24 @@ ZillaRec/
 │   ├── index.html           # VCR interface (embedded via go:embed)
 │   └── server.go            # SSE API, graceful shutdown, download handlers
 └── bin/                     # Build output (git-ignored)
-```
 
 🔌 API Endpoints
-
-| Endpoint | Method | Description |
-|---|---|---|
-| `/` | GET | Serves the embedded index.html VCR UI. |
-| `/api/download` | POST | Accepts `{url, cookieSource, quality}` and streams SSE progress. |
-| `/api/status` | GET | Returns the OmniCharge ControllerSnapshot (State, Memory, Health, Uptime). |
-| `/api/exit` | POST | Triggers graceful shutdown of the MasterController and HTTP server. |
-
-
+Endpoint Method Description
+/ GET Serves the embedded index.html VCR UI.
+/api/download POST Accepts {url, cookieSource, quality} and streams SSE progress.
+/api/status GET Returns the OmniCharge ControllerSnapshot (State, Memory, Health, Uptime).
+/api/exit POST Triggers graceful shutdown of the MasterController and HTTP server.
 🧪 Testing
-
-```bash
 make test          # verbose unit tests
 make diag          # go vet + tests + yt-dlp presence check
-```
 
 CI runs both on every push and pull request via .github/workflows/makefile.yml.
----
+​<div align="center">
+<i>"Back in the day, a VCR captured anything you plugged into it. Today, we capture any stream you paste into it."</i>
 
-<div align="center">
-  <i>"Back in the day, a VCR captured anything you plugged into it. Today, we capture any stream you paste into it."</i><br>
-  
-  <b>© ZILLA-REC® --- FJ™ cybertronic systems --- MMXXVI --- Autumn </b>
+​<b>© ZILLA-REC® --- FJ™ cybertronic systems --- MMXXVI --- Autumn </b>
 </div>
+
+
+
+http://googleusercontent.com/lmdx_content/LcbtNieGxjKqoHvoXtlxqoLUcIuOKkkAiiSsQUlFyzOpwZjCKseeIWRfgjyAqhYJZzzWFsKsmDDePqvDJTslzZwcTcDYLXkOFSDgnPRbbGDixOpSCWbyKlkMoiQzspuxXaXcxKlZLZnSQEThvMMahmhahTVGTuTwMIluuXPLSctDIOtBlSOfesVbmKcxbCOdglfuXKxlWxMSYrCpkhaigxigpIcItceWVKlpXwJiJTkgunEpajDyTsGKCpUNoCdNbEQiDIYuZxqgovBiUVLKPbxDCtMLsbRLItcgnHTUNEzEeyYdfALIVnEIqHbJIcmAgNkDMpSZCjhOxSxoBNLSRwdTWgPTUmIktzpkfyQWTfEY75769
