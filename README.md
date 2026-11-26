@@ -39,64 +39,12 @@
   - DNS resolution failures
   - VPN connection & proxy issues
   - YouTube IP bans / rate limits (HTTP 429 / bot detection) & geo-restrictions
-- **Cross-Platform Terminal Compatibility:** Build-tagged non-Windows terminal stubs (`downloader/ui_nonwindows.go`) ensuring seamless compilation and operation across Linux, Android/Termux, WSL2, and macOS.
-- **Graceful Server Shutdown:** Robust HTTP server lifecycle management with `srv.Shutdown`, OS signal trapping (`SIGINT`, `SIGTERM`), and active download tracking.
-- **Cosmetic Makefile Command Center:** Rich-colored Makefile targets for building, testing, diagnostics, updating, and running.
-- **Secure by Design:** The web server binds *only* to `127.0.0.1`. It is completely invisible to your local network and the internet.
-- **Smart Output:** Automatically registers downloaded files with Android's MediaStore so they appear instantly in your Gallery.
-- **Zero External Dependencies:** The web UI is compiled *into* the Go binary using `go:embed`.
+- **Cross-Platform Terminal & Process Management:** Build-tagged non-Windows terminal stubs (`downloader/ui_nonwindows.go`) and process group management (`downloader/proc_unix.go`, `downloader/proc_windows.go`) ensuring seamless compilation and operation across Linux, Android/Termux, WSL2, and macOS.
+- **Modular Subprocess Parsing:** Decomposed IPC output streaming parser (`handleLine`) with comprehensive unit test coverage.
+- **Graceful Server Shutdown:** Robust HTTP server lifecycle management.
 
 ---
 
-## 🚀 Installation & Setup
-
-### Prerequisites
-You must have Termux, `yt-dlp`, and `ffmpeg` installed.
-
-```bash
-pkg update && pkg upgrade
-pkg install golang yt-dlp ffmpeg make
-
-Build and Run with the Makefile
-​We provide a rich cosmetic Makefile acting as your command center.
-​Build from source
-git clone [https://github.com/FJ-cyberzilla/ZillaRec.git](https://github.com/FJ-cyberzilla/ZillaRec.git)
-cd ZillaRec
-
-# Display the command center help menu
-make help
-
-# Run system diagnostics (Go version, vet, tests, yt-dlp check)
-make diag
-
-# Build the native binary → bin/zillarec
-make build
-
-# Run all unit tests
-make test
-
-# Update yt-dlp and Go dependencies
-make update
-
-# Run CLI downloader
-make run
-
-# Start local VCR web server mode
-make server
-
-# Clean build artifacts
-make clean
-
-Cross-platform builds
-# Generate checksums for all platform binaries
-make checksums
-
-# Upload binaries + checksums to a GitHub Release
-make release
-
-make help output
-======================================================================
-  ZILLA-REC(R) VCR MASTER CONTROLLER & COMMAND CENTER
 ======================================================================
   Available Makefile Targets:
     make build          - Build native zillarec (this machine)
@@ -116,23 +64,34 @@ make help output
     make clean          - Remove build artifacts
 ======================================================================
 
-Usage
-​1. Terminal CLI Mode (Local Capture)
+## Usage
+
+### 1. Terminal CLI Mode (Local Capture)
+```bash
 make run
 # OR
 ./bin/zillarec
+```
+Paste your URL when prompted, select your desired video quality profile from the interactive menu, and watch the live animated progress bar.
 
-aste your URL when prompted, select your desired video quality profile from the interactive menu, and watch the live animated progress bar.
-​2. Browser Web UI Mode (Zilla-Rec)
+### 2. Browser Web UI Mode (Zilla-Rec)
+```bash
 make server
+```
+Open `http://127.0.0.1:8080` in Chrome or Firefox on your Android device. Paste any stream URL, select your cookie source (Auto-Detect, Chrome Browser cookies, Firefox, or None), and click `REC ●`. Press `POWER ⏻` to gracefully shut down the OmniCharge server directly from the VCR UI.
 
-Open http://127.0.0.1:8080 in Chrome or Firefox on your Android device. Paste any stream URL, select your cookie source (Auto-Detect, Chrome Browser cookies, Firefox, or None), and click REC ●. Press POWER ⏻ to gracefully shut down the OmniCharge server directly from the VCR UI.
-​Safety Note: The web server binds to loopback ONLY (127.0.0.1). It CANNOT be accessed by other devices on your Wi-Fi.
-​🛠️ Architecture & Layout
+*Safety Note:* The web server binds to loopback ONLY (`127.0.0.1`). It CANNOT be accessed by other devices on your Wi-Fi.
+
+---
+
+## 🛠️ Architecture & Layout
+
+```text
 ZillaRec/
 ├── .github/workflows/
 │   └── makefile.yml         # CI: build+test on push, publish release on tag
 ├── .gitignore
+├── ARCH_RECOMMENDATIONS.md  # Architectural analysis & best practices
 ├── LICENSE
 ├── Makefile                 # Cosmetic Command Center + release automation
 ├── README.md
@@ -142,9 +101,11 @@ ZillaRec/
 ├── install.ps1              # Optional WSL2 deployment helper
 ├── config/                  # Settings, quality profiles
 ├── downloader/              # Core yt-dlp engine, error analyzer, CLI UI
-│   ├── engine.go            # yt-dlp wrapper (cookies, progress parsing)
+│   ├── engine.go            # yt-dlp wrapper (cookies, progress parsing, handleLine)
 │   ├── errors.go            # Network, DNS, VPN, IP ban analyzer
 │   ├── media.go             # Android MediaStore integration
+│   ├── proc_unix.go         # Unix process group management
+│   ├── proc_windows.go      # Windows process group management
 │   ├── ui.go                # ANSI color & TTY management
 │   ├── ui_nonwindows.go     # Non-Windows terminal stubs (build-tagged)
 │   ├── ui_progress.go       # Animated CLI progress bar
@@ -161,24 +122,15 @@ ZillaRec/
 │   ├── index.html           # VCR interface (embedded via go:embed)
 │   └── server.go            # SSE API, graceful shutdown, download handlers
 └── bin/                     # Build output (git-ignored)
+```
 
-🔌 API Endpoints
-Endpoint Method Description
-/ GET Serves the embedded index.html VCR UI.
-/api/download POST Accepts {url, cookieSource, quality} and streams SSE progress.
-/api/status GET Returns the OmniCharge ControllerSnapshot (State, Memory, Health, Uptime).
-/api/exit POST Triggers graceful shutdown of the MasterController and HTTP server.
-🧪 Testing
-make test          # verbose unit tests
-make diag          # go vet + tests + yt-dlp presence check
+---
 
-CI runs both on every push and pull request via .github/workflows/makefile.yml.
-​<div align="center">
-<i>"Back in the day, a VCR captured anything you plugged into it. Today, we capture any stream you paste into it."</i>
+## 🔌 API Endpoints
 
-​<b>© ZILLA-REC® --- FJ™ cybertronic systems --- MMXXVI --- Autumn </b>
-</div>
-
-
-
-http://googleusercontent.com/lmdx_content/LcbtNieGxjKqoHvoXtlxqoLUcIuOKkkAiiSsQUlFyzOpwZjCKseeIWRfgjyAqhYJZzzWFsKsmDDePqvDJTslzZwcTcDYLXkOFSDgnPRbbGDixOpSCWbyKlkMoiQzspuxXaXcxKlZLZnSQEThvMMahmhahTVGTuTwMIluuXPLSctDIOtBlSOfesVbmKcxbCOdglfuXKxlWxMSYrCpkhaigxigpIcItceWVKlpXwJiJTkgunEpajDyTsGKCpUNoCdNbEQiDIYuZxqgovBiUVLKPbxDCtMLsbRLItcgnHTUNEzEeyYdfALIVnEIqHbJIcmAgNkDMpSZCjhOxSxoBNLSRwdTWgPTUmIktzpkfyQWTfEY75769
+| Endpoint | Method | Description |
+|---|---|---|
+| `/` | GET | Serves the embedded index.html VCR UI. |
+| `/api/download` | POST | Accepts `{url, cookieSource, quality}` and streams SSE progress. |
+| `/api/status` | GET | Returns the OmniCharge ControllerSnapshot (State, Memory, Health, Uptime). |
+| `/api/exit` | POST | Triggers graceful shutdown of the MasterController and HTTP server. |

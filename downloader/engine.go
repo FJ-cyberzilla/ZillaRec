@@ -203,47 +203,10 @@ func Run(ctx context.Context, videoURL, formatSpec, cookiePath, outDir string, c
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		parts := strings.SplitN(line, "\t", 2)
-		prefix := parts[0]
-		payload := ""
-		if len(parts) > 1 {
-			payload = parts[1]
-		}
-
-		switch prefix {
-		case "download":
-			if cb.OnProgress != nil {
-				p := parseProgressTemplate(payload)
-				cb.OnProgress(p)
-			}
-		case "DEST":
-			destinations = append(destinations, payload)
-			if cb.OnDestination != nil {
-				cb.OnDestination(payload)
-			}
-			if strings.Contains(payload, "Merging") && cb.OnMerging != nil {
-				cb.OnMerging()
-			}
-		case "LOG":
-			if cb.OnLog != nil && payload != "" {
-				cb.OnLog(payload)
-			}
-		case "SUCCESS":
-			if cb.OnLog != nil {
-				cb.OnLog(payload)
-			}
-		case "ERROR":
-			if cb.OnLog != nil {
-				cb.OnLog(payload)
-			}
-		default:
-			if cb.OnLog != nil && line != "" {
-				cb.OnLog(line)
-			}
-		}
+		handleLine(line, cb, &destinations)
 	}
 
-        scanErr := scanner.Err()
+	scanErr := scanner.Err()
 	waitErr := cmd.Wait()
 
 	if scanErr != nil {
@@ -259,6 +222,73 @@ func Run(ctx context.Context, videoURL, formatSpec, cookiePath, outDir string, c
 	}
 
 	return &Result{OutputDir: outDir, Files: files}, nil
+}
+
+func handleLine(line string, cb Callbacks, destinations *[]string) {
+	if strings.HasPrefix(line, "download:") {
+		if cb.OnProgress != nil {
+			p := parseProgressTemplate(strings.TrimPrefix(line, "download:"))
+			cb.OnProgress(p)
+		}
+		return
+	}
+
+	if idx := strings.Index(line, "Destination:"); idx != -1 {
+		dest := strings.TrimSpace(line[idx+len("Destination:"):])
+		dest = strings.Trim(dest, `"'`)
+		if dest != "" {
+			*destinations = append(*destinations, dest)
+			if cb.OnDestination != nil {
+				cb.OnDestination(dest)
+			}
+		}
+		return
+	}
+
+	if strings.Contains(line, "Merging") || strings.Contains(line, "Merging formats") {
+		if cb.OnMerging != nil {
+			cb.OnMerging()
+		}
+		if strings.Contains(line, "into") {
+			parts := strings.SplitN(line, "into", 2)
+			if len(parts) > 1 {
+				dest := strings.TrimSpace(parts[1])
+				dest = strings.Trim(dest, `"'`)
+				if dest != "" {
+					*destinations = append(*destinations, dest)
+					if cb.OnDestination != nil {
+						cb.OnDestination(dest)
+					}
+				}
+			}
+		}
+		return
+	}
+
+	parts := strings.SplitN(line, "\t", 2)
+	prefix := parts[0]
+	payload := ""
+	if len(parts) > 1 {
+		payload = parts[1]
+	} else {
+		payload = prefix
+	}
+
+	switch prefix {
+	case "DEST":
+		*destinations = append(*destinations, payload)
+		if cb.OnDestination != nil {
+			cb.OnDestination(payload)
+		}
+	case "LOG", "SUCCESS", "ERROR":
+		if cb.OnLog != nil && payload != "" {
+			cb.OnLog(payload)
+		}
+	default:
+		if cb.OnLog != nil && line != "" {
+			cb.OnLog(line)
+		}
+	}
 }
 
 func parseProgressTemplate(s string) Progress {
